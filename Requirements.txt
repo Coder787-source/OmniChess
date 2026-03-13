@@ -1,10 +1,2 @@
-Requirements 
-
 pygame
-chess
-chess.engine
-chess.pgn
-sys
-time
-os
-math
+python-chess
