@@ -1,3 +1,13 @@
+# ACKNOWLEDGEMENT: This project utilizes the following intellectual property 
+# and third-party libraries:
+# - 'pygame' library for the graphical user interface.
+# - 'python-chess' library for chess game rules and move validation.
+# - 'Stockfish' chess engine (https://stockfishchess.org/) for move analysis 
+#   and engine-driven gameplay.
+# - 'segoeuisymbol' and 'consolas' fonts for UI rendering.
+
+# PARTNER CODE SEGMENTS: This project was completed individually; no 
+# partner code segments were used.
 import pygame
 import chess
 import chess.engine
@@ -7,14 +17,14 @@ import time
 import os
 import math
 
-# --- CONFIGURATION ---
 WIDTH, HEIGHT = 1200, 800
 BOARD_SIZE = 600
 SQUARE_SIZE = BOARD_SIZE // 8
-OFFSET_X, OFFSET_Y = 160, 100 # Adjusted slightly for the Eval Bar
+OFFSET_X, OFFSET_Y = 160, 100 
 
-# Path to the Stockfish executable
-ENGINE_PATH = r"C:\Users\kesha\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENGINE_NAME = "stockfish-windows-x86-64-avx2.exe" 
+ENGINE_PATH = os.path.join(BASE_DIR, ENGINE_NAME)
 
 COLORS = {
     "select": "#f7f769", "accent": "#f1c40f", 
@@ -28,9 +38,9 @@ COLORS = {
 }
 
 THEMES = [
-    ("#eeeed2", "#769656"), # Classic Green
-    ("#dee3e6", "#8ca2ad"), # Blue Sky
-    ("#ebecd0", "#ba5546")  # Wood/Red
+    ("#eeeed2", "#769656"), 
+    ("#dee3e6", "#8ca2ad"), 
+    ("#ebecd0", "#ba5546")  
 ]
 
 SYMBOLS = {'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
@@ -48,14 +58,16 @@ class ChessTitan:
         print("OmniChess:Entertainment Studios")
         print("="*40)
         try:
+            # Attempting to connect to the engine using the relative path
             self.engine = chess.engine.SimpleEngine.popen_uci(ENGINE_PATH)
             identity = self.engine.id
             print(f"ENGINE: {identity.get('name', 'Stockfish')}")
             print(f"AUTHOR: {identity.get('author', 'Unknown')}")
             print("STATUS: CORE CONNECTED & OPERATIONAL")
         except Exception as e:
-            print(f"Errno 2: Stockfish not found at {ENGINE_PATH}")
-            print(f"DETAILS: {e}")
+            # Graceful failure: Allows the UI to run even if the engine is missing
+            print(f"STATUS: ENGINE NOT FOUND at {ENGINE_PATH}")
+            print("MODE: OFFLINE/PvP ONLY")
         print("="*40 + "\n")
 
         self.font_piece = pygame.font.SysFont("segoeuisymbol", 72)
@@ -73,7 +85,6 @@ class ChessTitan:
         self.timer_setting = 600
         self.current_theme_idx = 0
         
-        # New Feature State
         self.eval_score = 0.0
         self.last_move_quality = None
         self.prev_eval = 0.0
@@ -172,7 +183,7 @@ class ChessTitan:
             if pygame.Rect(800, 410, 350, 50).collidepoint(pos) and self.board.turn == self.user_color: 
                 self.hints_used += 1
                 if self.hints_used > 3: self.cheated = True
-                else:
+                elif self.engine:
                     info = self.engine.analyse(self.board, chess.engine.Limit(time=0.5))
                     if 'pv' in info: self.hint_move = info['pv'][0]
 
@@ -298,16 +309,20 @@ class ChessTitan:
                         p_col = "#ffffff" if p.isupper() else "#000000"
                         self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (bx, 735)); bx += 22
 
-                    # Moved Evaluation Quality Icon to the bottom-right area (above timer)
                     if self.last_move_quality:
                         icon_txt, icon_col = self.last_move_quality
                         pygame.draw.circle(self.screen, icon_col, (1130, 630), 25)
                         self.screen.blit(self.font_ui.render(icon_txt, True, "#ffffff"), (1130 - 12, 630 - 12))
 
+                    # BOT TURN LOGIC: Added check for self.engine to prevent crashes
                     if self.board.turn != self.user_color and not self.board.is_game_over() and self.state == "PLAYING":
-                        pygame.display.flip()
-                        res = self.engine.play(self.board, chess.engine.Limit(time=0.5))
-                        self.execute_move(res.move)
+                        if self.engine:
+                            pygame.display.flip()
+                            res = self.engine.play(self.board, chess.engine.Limit(time=0.5))
+                            self.execute_move(res.move)
+                        else:
+                            # If no engine, player can effectively play against themselves
+                            pass
 
                     if self.state == "PROMOTING":
                         s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA); s.fill(COLORS["overlay"]); self.screen.blit(s, (0,0))
@@ -366,5 +381,4 @@ class ChessTitan:
         self.screen.blit(self.font_big.render("START", True, "#ffffff"), (WIDTH//2-70, 690))
 
 if __name__ == "__main__":
-    ChessTitan().run()              
-
+    ChessTitan().run()
