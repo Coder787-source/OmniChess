@@ -22,8 +22,6 @@ BOARD_SIZE = 600
 SQUARE_SIZE = BOARD_SIZE // 8
 OFFSET_X, OFFSET_Y = 160, 100 
 
-# --- PORTABLE ENGINE PATH LOGIC ---
-# This looks for the .exe in the same folder as this script
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENGINE_NAME = "stockfish-windows-x86-64-avx2.exe" 
 ENGINE_PATH = os.path.join(BASE_DIR, ENGINE_NAME)
@@ -60,16 +58,13 @@ class ChessTitan:
         print("OmniChess:Entertainment Studios")
         print("="*40)
         try:
-            # Attempting to connect to the engine using the relative path
             self.engine = chess.engine.SimpleEngine.popen_uci(ENGINE_PATH)
             identity = self.engine.id
             print(f"ENGINE: {identity.get('name', 'Stockfish')}")
             print(f"AUTHOR: {identity.get('author', 'Unknown')}")
             print("STATUS: CORE CONNECTED & OPERATIONAL")
         except Exception as e:
-            # Graceful failure: Allows the UI to run even if the engine is missing
             print(f"STATUS: ENGINE NOT FOUND at {ENGINE_PATH}")
-            print("MODE: OFFLINE/PvP ONLY")
         print("="*40 + "\n")
 
         self.font_piece = pygame.font.SysFont("segoeuisymbol", 72)
@@ -136,7 +131,7 @@ class ChessTitan:
         filename = f"game_{int(time.time())}.pgn"
         with open(filename, "w") as f:
             f.write(str(game))
-        print(f"Saved: {filename}")
+        print(f"Saved: {filename} To same directory as program")
 
     def draw_eval_bar(self):
         bar_x, bar_y, bar_w, bar_h = 100, OFFSET_Y, 35, BOARD_SIZE
