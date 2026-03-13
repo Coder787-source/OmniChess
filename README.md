@@ -35,7 +35,6 @@ Ensure the Stockfish executable is in the same folder as StockFish_ChessGame.py.
 Running the Game
 Run the following command:
 
-Bash
 python StockFish_ChessGame.py
 
 Credits
