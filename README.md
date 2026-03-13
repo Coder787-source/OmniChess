@@ -19,7 +19,7 @@ Python: Download here
 
 Stockfish Engine: Download here
 
-Note: Place the downloaded .exe in the project root directory.
+Other Notes: Place the downloaded .exe in the project root directory and make sure you use the ARM version on ARM computers,and the x86_64 version on x86_64 computers.
 
 Installation
 Clone or download this repository.
