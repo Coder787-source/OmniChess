@@ -4,6 +4,8 @@ An open-source chess project developed entirely in Python.
 Features
 Stockfish Integration: Engine-driven analysis and gameplay.
 
+⚡ Ultra-Efficient: Uses ~100MB of RAM during active engine analysis. Light enough to run on a 10-year-old laptop or a modern MacBook Air without breaking a sweat."
+
 PGN Export: Download games to analyze on chess.com or lichess.org.
 
 Flexible Difficulty: Multiple skill levels and custom ELO adjustment.
