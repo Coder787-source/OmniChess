@@ -37,5 +37,6 @@ Run the following command:
 
 Bash
 python StockFish_ChessGame.py
+
 Credits
 Engine integration provided by the Stockfish Chess Engine authors.
