@@ -39,3 +39,7 @@ python StockFish_ChessGame.py
 
 Credits
 Engine integration provided by the Stockfish Chess Engine authors.
+
+The links to the external programs you need is
+https://www.python.org/downloads
+https://stockfishchess.org/download/
