@@ -1,6 +1,8 @@
 # OmniChess
 An open-source chess project developed entirely in Python.
-![OmniChess gameplay](Screenshot 2026-03-14 at 1.18.22 PM)
+
+![OmniChess gameplay](Screenshot_2026-03-14_at_1_18_22_PM.png)
+
 ---
 
 ## Features
