@@ -30,7 +30,7 @@ Install the required dependencies:
 
 Bash
 pip install -r requirements.txt
-Ensure the Stockfish executable is in the same folder as StockFish_ChessGame.py.
+Ensure the Stockfish executable is in the same folder as OmniChess program is in.
 
 Credits
 Engine integration provided by the Stockfish Chess Engine authors.
