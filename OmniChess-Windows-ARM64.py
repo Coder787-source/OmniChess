@@ -16,32 +16,36 @@ import sys
 import time
 import os
 import math
-import platform
+import random
+import subprocess
 
 WIDTH, HEIGHT = 1200, 800
 BOARD_SIZE = 600
 SQUARE_SIZE = BOARD_SIZE // 8
-OFFSET_X, OFFSET_Y = 160, 100 
+OFFSET_X, OFFSET_Y = 160, 100
 
-# --- AUTOMATIC ENGINE PATH LOGIC ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENGINE_NAME = "stockfish-windows-armv8.exe"
+ENGINE_PATH = os.path.join(BASE_DIR, ENGINE_NAME)
 
-# Detect architecture
-arch = platform.machine().lower()
-is_arm = any(x in arch for x in ['arm', 'aarch'])
+# Abstraction: hides the complexity of bot difficulty scaling behind a simple level number.
+# Each level maps to (search_depth, random_move_chance) so the rest of the code
+# only needs to look up self.current_level rather than manually computing bot behavior.
+LEVEL_CONFIG = {
+    1: (1,  0.85),
+    2: (2,  0.60),
+    3: (3,  0.35),
+    4: (4,  0.15),
+    5: (5,  0.05),
+    6: (7,  0.0),
+    7: (10, 0.0),
+    8: (15, 0.0),
+}
 
-# Set filenames based on architecture
-if is_arm:
-    ENGINE_NAME = "stockfish-windows-armv8.exe"
-else:
-    ENGINE_NAME = "stockfish-windows-x86-64-avx2.exe"
-
-# The engine must be located in an 'engines' subfolder
-ENGINE_PATH = os.path.join(BASE_DIR, "engines", ENGINE_NAME)
-# ------------------------------------
-
+# Abstraction: hides raw hex/RGBA values behind readable names so rendering code
+# references meaning (e.g. "check", "accent") rather than raw color values.
 COLORS = {
-    "select": "#f7f769", "accent": "#f1c40f", 
+    "select": "#f7f769", "accent": "#f1c40f",
     "sidebar": "#262421", "btn": "#45423e", "bg": "#1e1e1e",
     "win": "#2ecc71", "loss": "#ff4757", "dot": (0, 0, 0, 80),
     "capture_dot": (231, 76, 60, 160), "text": "#ecf0f1",
@@ -51,12 +55,16 @@ COLORS = {
     "brilliant": "#1baca1", "blunder": "#ff4757", "best": "#95bb4a"
 }
 
+# List: stores board color themes as (light_square, dark_square) tuples.
+# Index into this list using self.current_theme_idx to switch themes.
 THEMES = [
-    ("#eeeed2", "#769656"), 
-    ("#dee3e6", "#8ca2ad"), 
-    ("#ebecd0", "#ba5546")  
+    ("#eeeed2", "#769656"),
+    ("#dee3e6", "#8ca2ad"),
+    ("#ebecd0", "#ba5546")
 ]
 
+# Abstraction: hides Unicode lookup behind FEN character keys so piece rendering
+# only needs piece.symbol() rather than manual Unicode lookups.
 SYMBOLS = {'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
            'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚'}
 
@@ -67,22 +75,21 @@ class ChessTitan:
         pygame.display.set_caption("OmniChess")
         self.clock = pygame.time.Clock()
         self.engine = None
-        
+
         print("\n" + "="*40)
         print("OmniChess:Entertainment Studios")
-        print(f"DEBUG: Platform Architecture: {arch}")
         print("="*40)
         try:
-            # Attempting to connect to the engine using the dynamic path
-            self.engine = chess.engine.SimpleEngine.popen_uci(ENGINE_PATH)
+            self.engine = chess.engine.SimpleEngine.popen_uci(
+                ENGINE_PATH,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
             identity = self.engine.id
             print(f"ENGINE: {identity.get('name', 'Stockfish')}")
             print(f"AUTHOR: {identity.get('author', 'Unknown')}")
             print("STATUS: CORE CONNECTED & OPERATIONAL")
         except Exception as e:
-            # Graceful failure: Allows the UI to run even if the engine is missing
             print(f"STATUS: ENGINE NOT FOUND at {ENGINE_PATH}")
-            print("MODE: OFFLINE/PvP ONLY")
         print("="*40 + "\n")
 
         self.font_piece = pygame.font.SysFont("segoeuisymbol", 72)
@@ -91,32 +98,39 @@ class ChessTitan:
         self.font_tiny = pygame.font.SysFont("arial", 14, bold=True)
         self.font_credit = pygame.font.SysFont("consolas", 12, bold=True)
         self.font_big = pygame.font.SysFont("arial", 45, bold=True)
-        
+
         self.state = "MENU"
-        self.mode = "PRESET" 
+        self.mode = "PRESET"
         self.user_color = chess.WHITE
         self.current_level = 1
-        self.custom_elo = 1500 
+        self.custom_elo = 1500
         self.timer_setting = 600
         self.current_theme_idx = 0
-        
+
         self.eval_score = 0.0
-        self.last_move_quality = None
         self.prev_eval = 0.0
-        
+        self.bot_thinking = False
+
         self.reset_game()
 
     def draw_credits(self):
+        # Output: renders engine credit text centered at top of screen
         credit_text = "ENGINE INTEGRATION BY STOCKFISH v18"
         cred_surf = self.font_credit.render(credit_text, True, "#555555")
         self.screen.blit(cred_surf, (WIDTH//2 - cred_surf.get_width()//2, 5))
 
     def reset_game(self):
+        # Resets all in-game state to starting values for a new game
+        # Input: existing engine and user settings
+        # Output: fresh board, timers, and cleared lists
         self.board = chess.Board()
         self.selected_sq = None
+        # List: legal move destination squares shown as dots for the selected piece
         self.legal_dots = []
+        # List: piece symbols captured by each side, used for display in player cards
         self.captured_by_white = []
         self.captured_by_black = []
+        # List: SAN strings of every move played, used for move history display and PGN export
         self.move_history = []
         self.white_time = float(self.timer_setting)
         self.black_time = float(self.timer_setting)
@@ -127,16 +141,14 @@ class ChessTitan:
         self.pending_promotion = None
         self.eval_score = 0.0
         self.prev_eval = 0.0
-        self.last_move_quality = None
-        
+        self.bot_thinking = False
+
         if self.engine:
-            if self.mode == "PRESET":
-                skill = min(20, (self.current_level - 1) * 2)
-                self.engine.configure({"Skill Level": skill, "UCI_LimitStrength": False})
-            else:
-                self.engine.configure({"UCI_LimitStrength": True, "UCI_Elo": min(3190, self.custom_elo)})
+            self.engine.configure({"UCI_LimitStrength": False})
 
     def download_pgn(self):
+        # Input: self.move_history, self.user_color
+        # Output: saves current game as a timestamped .pgn file in the script directory
         game = chess.pgn.Game()
         game.headers["White"] = "Player" if self.user_color == chess.WHITE else "Stockfish"
         game.headers["Black"] = "Player" if self.user_color == chess.BLACK else "Stockfish"
@@ -149,27 +161,49 @@ class ChessTitan:
         filename = f"game_{int(time.time())}.pgn"
         with open(filename, "w") as f:
             f.write(str(game))
-        print(f"Saved: {filename}")
+        print(f"Saved: {filename} To same directory as program")
 
     def draw_eval_bar(self):
+        # Input: self.eval_score (white's absolute perspective), self.user_color
+        # Output: renders vertical eval bar — orientation flips depending on player side
+        # Abstraction: sigmoid function converts raw centipawn eval to a 0.0-1.0 bar ratio
         bar_x, bar_y, bar_w, bar_h = 100, OFFSET_Y, 35, BOARD_SIZE
         pygame.draw.rect(self.screen, COLORS["eval_black"], (bar_x, bar_y, bar_w, bar_h))
         display_eval = max(-10, min(10, self.eval_score))
         ratio = 1 / (1 + math.exp(-0.4 * display_eval))
         white_h = ratio * bar_h
-        pygame.draw.rect(self.screen, COLORS["eval_white"], (bar_x, bar_y + (bar_h - white_h), bar_w, white_h))
-        score_str = f"{self.eval_score:+.1f}"
+        if self.user_color == chess.WHITE:
+            pygame.draw.rect(self.screen, COLORS["eval_white"], (bar_x, bar_y + (bar_h - white_h), bar_w, white_h))
+        else:
+            pygame.draw.rect(self.screen, COLORS["eval_white"], (bar_x, bar_y, bar_w, white_h))
+        score_str = f"{self.eval_score:+.1f}" if self.user_color == chess.WHITE else f"{-self.eval_score:+.1f}"
         score_surf = self.font_tiny.render(score_str, True, COLORS["accent"])
         self.screen.blit(score_surf, (bar_x - 5, bar_y - 25))
 
+    def get_bot_move(self):
+        # Function Requirement: returns a legal chess.Move for the bot to play
+        # Input: self.board, self.current_level
+        # Output: chess.Move — random legal move or engine best move depending on level
+        # Abstraction: LEVEL_CONFIG hides depth/randomness details behind a level number
+        depth, random_chance = LEVEL_CONFIG[self.current_level]
+        legal = list(self.board.legal_moves)
+        if random.random() < random_chance:
+            time.sleep(4.0)
+            return random.choice(legal)
+        res = self.engine.play(self.board, chess.engine.Limit(depth=depth, time=4.0))
+        return res.move
+
     def handle_click(self, pos):
+        # Function Requirement: routes all mouse clicks to the correct game action
+        # Input: pos (x, y pixel coordinates of click)
+        # Output: mutates game state — selection, moves, menu navigation, hints, PGN
         if self.state == "MENU":
             for i in range(8):
                 rect = pygame.Rect(180 + (i%2)*140, 220 + (i//2)*70, 120, 55)
                 if rect.collidepoint(pos): self.current_level = i+1; self.mode = "PRESET"
-            
-            if pygame.Rect(800, 270, 60, 45).collidepoint(pos): self.custom_elo = max(1350, self.custom_elo - 100); self.mode = "ELO"
-            if pygame.Rect(865, 270, 45, 45).collidepoint(pos): self.custom_elo = max(1350, self.custom_elo - 10); self.mode = "ELO"
+
+            if pygame.Rect(800, 270, 60, 45).collidepoint(pos): self.custom_elo = max(100, self.custom_elo - 100); self.mode = "ELO"
+            if pygame.Rect(865, 270, 45, 45).collidepoint(pos): self.custom_elo = max(100, self.custom_elo - 10); self.mode = "ELO"
             if pygame.Rect(980, 270, 45, 45).collidepoint(pos): self.custom_elo = min(3190, self.custom_elo + 10); self.mode = "ELO"
             if pygame.Rect(1030, 270, 60, 45).collidepoint(pos): self.custom_elo = min(3190, self.custom_elo + 100); self.mode = "ELO"
 
@@ -193,9 +227,11 @@ class ChessTitan:
             if self.board.is_game_over():
                 if pygame.Rect(WIDTH//2-100, HEIGHT//2+60, 200, 50).collidepoint(pos): self.state = "MENU"
                 return
-            if pygame.Rect(800, 350, 350, 50).collidepoint(pos): self.state = "MENU"
-            if pygame.Rect(800, 470, 350, 50).collidepoint(pos): self.download_pgn()
-            if pygame.Rect(800, 410, 350, 50).collidepoint(pos) and self.board.turn == self.user_color: 
+            if pygame.Rect(800, 300, 350, 45).collidepoint(pos):
+                self.state = "MENU"
+                return
+            if pygame.Rect(800, 410, 350, 45).collidepoint(pos): self.download_pgn()
+            if pygame.Rect(800, 355, 350, 45).collidepoint(pos) and self.board.turn == self.user_color:
                 self.hints_used += 1
                 if self.hints_used > 3: self.cheated = True
                 elif self.engine:
@@ -222,6 +258,9 @@ class ChessTitan:
                     self.selected_sq = None; self.legal_dots = []
 
     def execute_move(self, move):
+        # Function Requirement: applies a move and updates all dependent state
+        # Input: move (chess.Move)
+        # Output: mutates board, move_history, captured lists, eval_score
         self.prev_eval = self.eval_score
         san = self.board.san(move)
         cap = self.board.piece_at(move.to_square)
@@ -233,16 +272,15 @@ class ChessTitan:
         self.hint_move = None
         if self.engine:
             info = self.engine.analyse(self.board, chess.engine.Limit(time=0.1))
-            score = info["score"].relative
+            # Abstraction: score.white() gives a consistent absolute evaluation from white's
+            # perspective regardless of which side just moved, simplifying eval bar logic
+            score = info["score"].white()
             self.eval_score = (score.score() / 100.0) if not score.is_mate() else (10.0 if score.mate() > 0 else -10.0)
-            if self.board.turn == chess.BLACK: self.eval_score *= -1
-            diff = abs(self.eval_score - self.prev_eval)
-            if diff < 0.2: self.last_move_quality = ("!!", COLORS["brilliant"])
-            elif diff < 0.8: self.last_move_quality = ("Best", COLORS["best"])
-            elif diff > 2.5: self.last_move_quality = ("??", COLORS["blunder"])
-            else: self.last_move_quality = None
 
     def draw_board(self):
+        # Function Requirement: renders the chess board, pieces, highlights, and move dots
+        # Input: self.board, self.selected_sq, self.legal_dots, self.hint_move, self.user_color
+        # Output: draws board to screen
         theme = THEMES[self.current_theme_idx]
         for sq in chess.SQUARES:
             r, c = sq//8, sq%8
@@ -253,8 +291,11 @@ class ChessTitan:
                 if piece.piece_type == chess.KING and self.board.is_check() and piece.color == self.board.turn:
                     col = COLORS["check"]
             if self.selected_sq == sq: col = COLORS["select"]
+            if self.hint_move and sq in (self.hint_move.from_square, self.hint_move.to_square):
+                col = COLORS["hint"]
             pygame.draw.rect(self.screen, col, (x, y, SQUARE_SIZE, SQUARE_SIZE))
             if piece:
+                # Abstraction: SYMBOLS dict hides Unicode lookup behind piece.symbol() key
                 p_color = "#ffffff" if piece.color == chess.WHITE else "#000000"
                 self.screen.blit(self.font_piece.render(SYMBOLS[piece.symbol()], True, p_color), (x+5, y-10))
         for d_sq in self.legal_dots:
@@ -266,16 +307,26 @@ class ChessTitan:
             self.screen.blit(s, (dot_x-15, dot_y-15))
 
     def run(self):
+        # Function Requirement: main game loop — processes events, updates state, renders frame
+        # Input: pygame events, engine responses
+        # Output: continuous screen updates at 60fps
         while True:
             now = time.time()
             dt = now - self.last_update
             self.last_update = now
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    if self.engine: self.engine.quit()
+                    pygame.quit(); sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN: self.handle_click(event.pos)
+
             if self.state == "MENU": self.draw_menu()
             else:
                 self.screen.fill(COLORS["bg"])
                 self.draw_credits()
                 self.draw_eval_bar()
-                
+
                 if self.cheated:
                     txt = self.font_big.render("CHEATING DETECTED:Auto Forfeit", True, COLORS["loss"])
                     self.screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT//2))
@@ -292,48 +343,50 @@ class ChessTitan:
                         top_label, top_time, top_captures = f"{bot_label} (White)", self.white_time, self.captured_by_white
                         btm_label, btm_time, btm_captures = "YOU (Black)", self.black_time, self.captured_by_black
 
-                    pygame.draw.rect(self.screen, COLORS["btn"], (800, 20, 350, 120), border_radius=10)
+                    pygame.draw.rect(self.screen, COLORS["btn"], (800, 20, 350, 100), border_radius=10)
                     t_mins, t_secs = divmod(max(0, int(top_time)), 60)
-                    self.screen.blit(self.font_ui.render(top_label, True, COLORS["accent"]), (815, 30))
-                    self.screen.blit(self.font_big.render(f"{t_mins:02d}:{t_secs:02d}", True, "#ffffff"), (815, 55))
+                    self.screen.blit(self.font_ui.render(top_label, True, COLORS["accent"]), (815, 28))
+                    self.screen.blit(self.font_big.render(f"{t_mins:02d}:{t_secs:02d}", True, "#ffffff"), (815, 52))
                     tx = 815
                     for p in top_captures:
                         p_col = "#ffffff" if p.isupper() else "#000000"
-                        self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (tx, 95)); tx += 22
+                        self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (tx, 90)); tx += 22
 
-                    pygame.draw.rect(self.screen, "#2c2c2c", (800, 150, 350, 180), border_radius=10)
-                    self.screen.blit(self.font_tiny.render("MOVE HISTORY", True, "#888888"), (815, 155))
-                    hx, hy = 815, 180
+                    pygame.draw.rect(self.screen, "#2c2c2c", (800, 130, 350, 160), border_radius=10)
+                    self.screen.blit(self.font_tiny.render("MOVE HISTORY", True, "#888888"), (815, 135))
+                    hx, hy = 815, 155
                     for i in range(max(0, len(self.move_history)-14), len(self.move_history)):
                         self.screen.blit(self.font_tiny.render(f"{i+1}. {self.move_history[i]}", True, "#ffffff"), (hx, hy))
-                        hy += 20; hx += 80 if hy > 310 else 0; hy = 180 if hy > 310 else hy
+                        hy += 20; hx += 80 if hy > 270 else 0; hy = 155 if hy > 270 else hy
 
-                    pygame.draw.rect(self.screen, COLORS["btn"], (800, 350, 350, 50), border_radius=10)
-                    self.screen.blit(self.font_ui.render("HOME MENU", True, "#ffffff"), (915, 365))
-                    pygame.draw.rect(self.screen, COLORS["accent"] if self.hints_used < 3 else COLORS["loss"], (800, 410, 350, 50), border_radius=10)
-                    self.screen.blit(self.font_ui.render(f"HINT ({3-self.hints_used} left)", True, COLORS["bg"]), (835, 425))
-                    pygame.draw.rect(self.screen, COLORS["accent"], (800, 470, 350, 50), border_radius=10)
-                    self.screen.blit(self.font_ui.render("DOWNLOAD PGN", True, COLORS["bg"]), (905, 485))
+                    pygame.draw.rect(self.screen, COLORS["btn"], (800, 300, 350, 45), border_radius=10)
+                    self.screen.blit(self.font_ui.render("HOME MENU", True, "#ffffff"), (915, 312))
+                    pygame.draw.rect(self.screen, COLORS["accent"] if self.hints_used < 3 else COLORS["loss"], (800, 355, 350, 45), border_radius=10)
+                    self.screen.blit(self.font_ui.render(f"HINT ({3-self.hints_used} left)", True, COLORS["bg"]), (835, 367))
+                    pygame.draw.rect(self.screen, COLORS["accent"], (800, 410, 350, 45), border_radius=10)
+                    self.screen.blit(self.font_ui.render("DOWNLOAD PGN", True, COLORS["bg"]), (905, 422))
 
-                    pygame.draw.rect(self.screen, COLORS["btn"], (800, 660, 350, 120), border_radius=10)
+                    pygame.draw.rect(self.screen, COLORS["btn"], (800, 570, 350, 100), border_radius=10)
                     b_mins, b_secs = divmod(max(0, int(btm_time)), 60)
-                    self.screen.blit(self.font_ui.render(btm_label, True, COLORS["accent"]), (815, 670))
-                    self.screen.blit(self.font_big.render(f"{b_mins:02d}:{b_secs:02d}", True, "#ffffff"), (815, 695))
+                    self.screen.blit(self.font_ui.render(btm_label, True, COLORS["accent"]), (815, 578))
+                    self.screen.blit(self.font_big.render(f"{b_mins:02d}:{b_secs:02d}", True, "#ffffff"), (815, 602))
                     bx = 815
                     for p in btm_captures:
                         p_col = "#ffffff" if p.isupper() else "#000000"
-                        self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (bx, 735)); bx += 22
-
-                    if self.last_move_quality:
-                        icon_txt, icon_col = self.last_move_quality
-                        pygame.draw.circle(self.screen, icon_col, (1130, 630), 25)
-                        self.screen.blit(self.font_ui.render(icon_txt, True, "#ffffff"), (1130 - 12, 630 - 12))
+                        self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (bx, 640)); bx += 22
 
                     if self.board.turn != self.user_color and not self.board.is_game_over() and self.state == "PLAYING":
                         if self.engine:
                             pygame.display.flip()
-                            res = self.engine.play(self.board, chess.engine.Limit(time=0.5))
-                            self.execute_move(res.move)
+                            if self.mode == "PRESET":
+                                move = self.get_bot_move()
+                            else:
+                                self.engine.configure({"UCI_LimitStrength": True, "UCI_Elo": max(1320, min(3190, self.custom_elo))})
+                                res = self.engine.play(self.board, chess.engine.Limit(time=4.0))
+                                self.engine.configure({"UCI_LimitStrength": False})
+                                move = res.move
+                            if self.state == "PLAYING":
+                                self.execute_move(move)
                         else:
                             pass
 
@@ -354,14 +407,12 @@ class ChessTitan:
                         pygame.draw.rect(self.screen, COLORS["win"], (WIDTH//2-100, HEIGHT//2+60, 200, 50), border_radius=10)
                         self.screen.blit(self.font_ui.render("BACK TO MENU", True, "#ffffff"), (WIDTH//2-75, HEIGHT//2+73))
 
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    if self.engine: self.engine.quit()
-                    pygame.quit(); sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN: self.handle_click(event.pos)
             pygame.display.flip(); self.clock.tick(60)
 
     def draw_menu(self):
+        # Function Requirement: renders the full main menu screen
+        # Input: self.current_level, self.mode, self.custom_elo, self.user_color, self.timer_setting
+        # Output: draws all menu elements to screen
         self.screen.fill(COLORS["bg"]); self.draw_credits()
         title = self.font_big.render("OmniChess", True, COLORS["accent"])
         self.screen.blit(title, (WIDTH//2 - title.get_width()//2, 60))
