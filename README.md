@@ -8,7 +8,7 @@ An open-source chess project developed entirely in Python.
 - **Time Control:** Customizable match duration.
 - **Anti-Cheat:** Built-in system to monitor and flag unauthorized move assistance.
 - **Error Logging:** Clear diagnostic messages to help with troubleshooting.
-- **Cross-Platform:** Supports Windows (x86-64 and ARM64) and Linux (x86-64 and ARM).
+- **Cross-Platform:** Supports Windows (x86-64 and ARM64), Linux (x86-64 and ARM), and macOS (ARM).
 
 ## Prerequisites
 - Python: https://www.python.org/downloads
@@ -42,6 +42,9 @@ cd Stockfish/src
 make -j4 build
 ```
 Copy the compiled `stockfish` binary to the same folder as `OmniChess-Linux-ARM.py` and run that file.
+
+**macOS (Apple Silicon — untested, community feedback welcome):**
+Download the macOS Apple Silicon Stockfish binary from stockfishchess.org, place it in the same folder as `OmniChess-macOS.py` and run that file. Please report any issues via GitHub Issues.
 
 ## Credits
 Engine integration provided by the Stockfish Chess Engine authors.
