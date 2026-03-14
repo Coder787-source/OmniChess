@@ -1,4 +1,4 @@
-ChessBot
+OmniChess
 An open-source chess project developed entirely in Python.
 
 Features
