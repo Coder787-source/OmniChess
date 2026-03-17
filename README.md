@@ -75,6 +75,30 @@ python3 OmniChess-Linux-x86-64.py
 
 ### 🐧 Linux ARM (e.g. Raspberry Pi 5)
 
+#### ⚡ Auto Installer (Recommended)
+
+Handles everything automatically including compiling Stockfish from source.
+
+**Install:**
+```bash
+wget https://raw.githubusercontent.com/Coder787-source/OmniChess/main/install.sh
+chmod +x install.sh
+bash install.sh
+```
+
+**Uninstall:**
+```bash
+wget https://raw.githubusercontent.com/Coder787-source/OmniChess/main/uninstall.sh
+chmod +x uninstall.sh
+bash uninstall.sh
+```
+
+> ⚠️ Stockfish compilation may take 5–30 minutes depending on your Pi model.
+
+---
+
+#### 🔧 Manual Setup
+
 Stockfish does not provide official Linux ARM binaries, so you must compile it from source.
 
 1. Install build dependencies:
