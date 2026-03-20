@@ -63,8 +63,9 @@ python OmniChess-Windows-ARM64.py
 ### 🐧 Linux x86-64
 
 1. Download the **Linux x86-64 AVX2** Stockfish binary from https://stockfishchess.org/download/
-2. Place the binary in the same folder as `OmniChess-Linux-x86-64.py`.
-3. Make it executable:
+2. Download Unifont for pieces sudo apt install fonts-unifont(Debian),sudo dnf install unifont-fonts(Fedora),yay -S ttf-unifont(Arch)
+3. Place the binary in the same folder as `OmniChess-Linux-x86-64.py`.
+4. Make it executable:
 ```bash
 chmod +x stockfish-ubuntu-x86-64-avx2
 ```
@@ -102,7 +103,7 @@ bash uninstall.sh
 #### 🔧 Manual Setup
 
 Stockfish does not provide official Linux ARM binaries, so you must compile it from source.
-
+Download Unifont for pieces sudo apt install fonts-unifont(Debian),sudo dnf install unifont-fonts(Fedora),yay -S ttf-unifont(Arch)
 1. Install build dependencies:
 ```bash
 sudo apt install git g++ make
