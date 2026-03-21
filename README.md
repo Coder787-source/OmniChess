@@ -1,7 +1,3 @@
-Got it—I'll keep the visual flair with the images and emojis while integrating the streamlined, **Pi-Apps-compatible** instructions. This makes the README look professional while ensuring those 87+ users (and the Botspot maintainers) see exactly how to install it the right way.
-
-Here is your polished README:
-
 ---
 
 # OmniChess
