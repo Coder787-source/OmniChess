@@ -1,45 +1,47 @@
 #!/bin/bash
-install_dir="$HOME/OmniChess"
+# OmniChess v1.2 Auto-Installer
 
-if ! command -v install_packages &> /dev/null; then
-    install_packages() { sudo apt update && sudo apt install -y "$@"; }
+echo "Step 1: Installing System Audio & Math Dependencies..."
+sudo apt-get update
+# libportaudio2 is required for your numpy sound mixer
+# libssl-dev is required for the Lichess API calls (urllib/ssl)
+sudo apt-get install -y build-essential python3-pip python3-numpy \
+    libportaudio2 libasound2-dev libssl-dev python3-pygame
+
+echo "Step 2: Installing Python sounddevice library..."
+# This allows your NumPy arrays to talk to the Pi's speakers
+pip3 install sounddevice --break-system-packages
+
+INSTALL_DIR="$HOME/OmniChess"
+if [ ! -d "$INSTALL_DIR" ]; then
+    mkdir -p "$INSTALL_DIR"
 fi
 
-if ! command -v create_desktop_entry &> /dev/null; then
-    create_desktop_entry() {
-        sudo bash -c "cat > /usr/share/applications/${1,,}.desktop << EOF
+# Move current files to the install directory
+cp -r . "$INSTALL_DIR"
+
+echo "Step 3: Checking Stockfish Core..."
+if [ ! -f "$INSTALL_DIR/stockfish" ]; then
+    echo "Compiling Stockfish for your specific Pi hardware..."
+    # If the user is on Pi 4/5, this make command optimizes for their CPU
+    git clone https://github.com/official-stockfish/Stockfish.git
+    cd Stockfish/src && make -j$(nproc) build ARCH=armv8
+    cp stockfish "$INSTALL_DIR/stockfish"
+    chmod +x "$INSTALL_DIR/stockfish"
+    cd "$INSTALL_DIR"
+    rm -rf Stockfish
+fi
+
+echo "Step 4: Finalizing Desktop Launcher..."
+cat <<EOF > ~/Desktop/OmniChess.desktop
 [Desktop Entry]
-Name=$1
-Comment=$2
-Exec=$3
-Icon=$4
+Name=OmniChess
+Exec=python3 $INSTALL_DIR/main.py
+Icon=$INSTALL_DIR/icon.png
 Terminal=false
 Type=Application
-Categories=Game;
-EOF"
-    }
-fi
+Categories=Game;BoardGame;
+EOF
 
-install_packages git g++ make python3 python3-pip unifont python3-pygame python3-chess
-pip3 install python-chess --user --break-system-packages 2>/dev/null || pip3 install python-chess --user
-
-mkdir -p "$install_dir"
-wget -qO "$install_dir/OmniChess-Linux-ARM.py" "https://github.com/Coder787-source/OmniChess/releases/latest/download/OmniChess-Linux-ARM.py"
-wget -qO "$install_dir/icon-64.png" "https://raw.githubusercontent.com/Coder787-source/OmniChess/main/icon-64.png"
-
-cd /tmp
-git clone --depth 1 https://github.com/official-stockfish/Stockfish.git
-cd Stockfish/src
-make -j$(nproc) build
-cp stockfish "$install_dir/stockfish"
-chmod +x "$install_dir/stockfish"
-cd ~
-rm -rf /tmp/Stockfish
-
-create_desktop_entry "OmniChess" "Open source chess app powered by Stockfish" "python3 $install_dir/OmniChess-Linux-ARM.py" "$install_dir/icon-64.png"
-
-sudo bash -c "cat > /usr/local/bin/omnichess << EOF
-#!/bin/bash
-python3 $install_dir/OmniChess-Linux-ARM.py
-EOF"
-sudo chmod +x /usr/local/bin/omnichess
+chmod +x ~/Desktop/OmniChess.desktop
+echo "SUCCESS: OmniChess v1.2 is ready. Your job is now: PLAY."
