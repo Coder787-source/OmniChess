@@ -1,3 +1,9 @@
+Got it—I'll keep the visual flair with the images and emojis while integrating the streamlined, **Pi-Apps-compatible** instructions. This makes the README look professional while ensuring those 87+ users (and the Botspot maintainers) see exactly how to install it the right way.
+
+Here is your polished README:
+
+---
+
 # OmniChess
 An open-source chess project developed entirely in Python.
 
@@ -5,143 +11,70 @@ An open-source chess project developed entirely in Python.
 
 ---
 
-## Features
+## 🚀 Features
 - **Stockfish Integration:** Engine-driven analysis and gameplay.
+- **Lichess Puzzle API:** Practice with an infinite stream of tactical puzzles directly in-app.
 - **PGN Export:** Download games to analyze on chess.com or lichess.org.
 - **Flexible Difficulty:** Multiple skill levels and custom ELO adjustment.
-- **Time Control:** Customizable match duration.
 - **Anti-Cheat:** Built-in system to monitor and flag unauthorized move assistance.
-- **Error Logging:** Clear diagnostic messages to help with troubleshooting.
-- **Cross-Platform:** Supports Windows (x86-64 and ARM64), Linux (x86-64 and ARM), and macOS (ARM).
+- **Cross-Platform:** Native support for Windows, Linux (including Raspberry Pi), and macOS.
 
 ---
 
-## Prerequisites
-- Python: https://www.python.org/downloads
-- Stockfish Engine: https://stockfishchess.org/download/
+## 🐧 Linux ARM / Raspberry Pi Setup
 
----
-
-## Installation
-1. Clone or download this repository.
-2. Open your terminal or command prompt in the project folder.
-3. Install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Platform Setup
-
----
-
-### 🪟 Windows x86-64
-
-1. Download the **x86-64 AVX2** Stockfish binary from https://stockfishchess.org/download/
-2. Place the binary in the same folder as `OmniChess-Windows-x86-64.py`.
-3. Run the script:
-```bash
-python OmniChess-Windows-x86-64.py
-```
-
----
-
-### 🪟 Windows ARM64
-
-1. Download the **ARM64** Stockfish binary from https://stockfishchess.org/download/
-2. Place the binary in the same folder as `OmniChess-Windows-ARM64.py`.
-3. Run the script:
-```bash
-python OmniChess-Windows-ARM64.py
-```
-
----
-
-### 🐧 Linux x86-64
-
-1. Download the **Linux x86-64 AVX2** Stockfish binary from https://stockfishchess.org/download/
-2. Install Unifont for chess piece rendering:
-   - Debian/Ubuntu: `sudo apt install fonts-unifont`
-   - Fedora: `sudo dnf install unifont-fonts`
-   - Arch: `yay -S ttf-unifont`
-3. Place the binary in the same folder as `OmniChess-Linux-x86-64.py`.
-4. Make it executable:
-```bash
-chmod +x stockfish-ubuntu-x86-64-avx2
-```
-5. Run the script:
-```bash
-python3 OmniChess-Linux-x86-64.py
-```
-
----
-
-### 🐧 Linux ARM (e.g. Raspberry Pi 5)
-
-#### ⚡ Auto Installer (Recommended)
-
-Handles everything automatically including compiling Stockfish from source and installing Unifont.
+### ⚡ Auto Installer (Recommended)
+This is the fastest way to get OmniChess running on a Raspberry Pi. This script handles all dependencies, compiles Stockfish for your specific Pi model, and adds OmniChess to your application menu.
 
 **Install:**
 ```bash
-wget https://raw.githubusercontent.com/Coder787-source/OmniChess/main/install.sh
-chmod +x install.sh
-bash install.sh
+wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/install.sh | bash
 ```
 
 **Uninstall:**
 ```bash
-wget https://raw.githubusercontent.com/Coder787-source/OmniChess/main/uninstall.sh
-chmod +x uninstall.sh
-bash uninstall.sh
+wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/uninstall.sh | bash
 ```
 
-> ⚠️ Stockfish compilation may take 5–30 minutes depending on your Pi model.
+> ⚠️ **Note:** Stockfish compilation is optimized for your hardware and may take a few minutes depending on your Pi model (Pi 5 is significantly faster).
 
 ---
 
-#### 🔧 Manual Setup
+## 💻 Other Platforms
 
-Stockfish does not provide official Linux ARM binaries, so you must compile it from source.
+### 🪟 Windows (x86-64 & ARM64)
+1. Download the correct **Stockfish binary** for your architecture from [stockfishchess.org](https://stockfishchess.org/download/).
+2. Place the binary in the project folder.
+3. Install requirements: `pip install -r requirements.txt`
+4. Run: `python OmniChess-Windows-your-arch.py`
 
-1. Install build dependencies and Unifont:
-```bash
-sudo apt install git g++ make unifont
-```
-2. Clone and compile Stockfish:
-```bash
-git clone https://github.com/official-stockfish/Stockfish.git
-cd Stockfish/src
-make -j4 build
-```
-3. Copy the compiled binary to the same folder as `OmniChess-Linux-ARM.py`:
-```bash
-cp stockfish /path/to/OmniChess-Linux-ARM.py/folder/
-```
-4. Run the script:
-```bash
-python3 OmniChess-Linux-ARM.py
-```
-
----
+### 🐧 Linux x86-64
+1. Install Unifont: `sudo apt install fonts-unifont` (Debian/Ubuntu).
+2. Download the **Linux x86-64** Stockfish binary.
+3. Make it executable: `chmod +x stockfish-binary-name`
+4. Run: `python3 OmniChess-Linux-x86-64.py`
 
 ### 🍎 macOS (Apple Silicon)
-
-1. Download the **macOS Apple Silicon** Stockfish binary from https://stockfishchess.org/download/
-2. Place the binary in the same folder as `OmniChess-MacOS-ARM.py`.
-3. Remove the macOS quarantine flag and make it executable:
-```bash
-xattr -d com.apple.quarantine /path/to/stockfish-macos-m1-apple-silicon
-chmod +x /path/to/stockfish-macos-m1-apple-silicon
-```
-4. If macOS still blocks it, go to **System Settings → Privacy & Security** and click **Allow Anyway**.
-5. Run the script:
-```bash
-python3 OmniChess-MacOS-ARM.py
-```
+1. Download the **macOS Apple Silicon** Stockfish binary.
+2. Remove the quarantine flag: 
+   ```bash
+   xattr -d com.apple.quarantine stockfish-macos-m1-apple-silicon
+   chmod +x stockfish-macos-m1-apple-silicon
+   ```
+3. Run: `python3 OmniChess-MacOS-ARM.py`
 
 ---
 
-## Credits
-Engine integration provided by the Stockfish Chess Engine authors.
+## 📋 Requirements
+- **Python 3.x**
+- **Pygame** & **Python-Chess**
+- **Unifont** (For proper chess piece rendering)
+
+---
+
+## 🤝 Credits
+* **Stockfish Engine:** Developed by the Stockfish team.
+* **Puzzles:** Powered by the Lichess.org API.
+* **Developer:** Coder787
+
+---
