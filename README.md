@@ -75,5 +75,3 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unin
 * **Puzzles:** Powered by the Lichess.org API.
 * **Developer:** Coder787
 ```
-
-Would you like me to help you verify that the `install.sh` and `uninstall.sh` links in this README are pointing to the correct branch on your repo?
