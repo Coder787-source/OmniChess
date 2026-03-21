@@ -79,7 +79,7 @@ if [ "$PIAPPS" = false ]; then
 [Desktop Entry]
 Name=OmniChess
 Comment=Open source chess app powered by Stockfish
-Exec=python3 $INSTALL_DIR/OmniChess-Linux-ARM.py
+Exec=env SDL_VIDEO_CENTERED=1 python3 $INSTALL_DIR/OmniChess-Linux-ARM.py
 Icon=$INSTALL_DIR/icon.png
 Terminal=false
 Type=Application
@@ -93,7 +93,7 @@ EOF
 [Desktop Entry]
 Name=OmniChess
 Comment=Open source chess app powered by Stockfish
-Exec=python3 $INSTALL_DIR/OmniChess-Linux-ARM.py
+Exec=env SDL_VIDEO_CENTERED=1 python3 $INSTALL_DIR/OmniChess-Linux-ARM.py
 Icon=$INSTALL_DIR/icon.png
 Terminal=false
 Type=Application
@@ -105,7 +105,7 @@ EOF"
     # CLI launcher
     sudo bash -c "cat > /usr/local/bin/omnichess << EOF
 #!/bin/bash
-python3 $INSTALL_DIR/OmniChess-Linux-ARM.py
+SDL_VIDEO_CENTERED=1 python3 $INSTALL_DIR/OmniChess-Linux-ARM.py
 EOF"
     sudo chmod +x /usr/local/bin/omnichess
 else
