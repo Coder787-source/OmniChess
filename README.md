@@ -1,9 +1,7 @@
 # OmniChess
 An open-source chess project developed entirely in Python.
 
-![OmniChess gameplay](gameplay.png) 
-
-![OmniChess icon](icon-64.png)
+![OmniChess gameplay](gameplay.png) ![OmniChess icon](icon.png)
 
 ---
 
@@ -63,13 +61,16 @@ python OmniChess-Windows-ARM64.py
 ### 🐧 Linux x86-64
 
 1. Download the **Linux x86-64 AVX2** Stockfish binary from https://stockfishchess.org/download/
-2. Download Unifont for pieces sudo apt install fonts-unifont(Debian),sudo dnf install unifont-fonts(Fedora),yay -S ttf-unifont(Arch)
+2. Install Unifont for chess piece rendering:
+   - Debian/Ubuntu: `sudo apt install fonts-unifont`
+   - Fedora: `sudo dnf install unifont-fonts`
+   - Arch: `yay -S ttf-unifont`
 3. Place the binary in the same folder as `OmniChess-Linux-x86-64.py`.
 4. Make it executable:
 ```bash
 chmod +x stockfish-ubuntu-x86-64-avx2
 ```
-4. Run the script:
+5. Run the script:
 ```bash
 python3 OmniChess-Linux-x86-64.py
 ```
@@ -80,7 +81,7 @@ python3 OmniChess-Linux-x86-64.py
 
 #### ⚡ Auto Installer (Recommended)
 
-Handles everything automatically including compiling Stockfish from source.
+Handles everything automatically including compiling Stockfish from source and installing Unifont.
 
 **Install:**
 ```bash
@@ -103,10 +104,10 @@ bash uninstall.sh
 #### 🔧 Manual Setup
 
 Stockfish does not provide official Linux ARM binaries, so you must compile it from source.
-Download Unifont for pieces sudo apt install fonts-unifont(Debian),sudo dnf install unifont-fonts(Fedora),yay -S ttf-unifont(Arch)
-1. Install build dependencies:
+
+1. Install build dependencies and Unifont:
 ```bash
-sudo apt install git g++ make
+sudo apt install git g++ make unifont
 ```
 2. Clone and compile Stockfish:
 ```bash
