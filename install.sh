@@ -61,21 +61,32 @@ wget -q -O "$INSTALL_DIR/icon.png" \
     "$REPO/raw/main/omnichess_icon.png" \
     || echo "Warning: Could not download icon, continuing anyway..."
 
-# Step 5: Compile Stockfish
-echo "Step 5: Compiling Stockfish (this may take 5-30 minutes)..."
+# Step 5: Download pre-built Stockfish binary
+echo "Step 5: Downloading Stockfish..."
 if [ ! -f "$INSTALL_DIR/$ENGINE_NAME" ]; then
+    SF_VERSION="sf_17.1"
+    SF_URL="https://github.com/official-stockfish/Stockfish/releases/download/${SF_VERSION}/stockfish-linux-armv8.tar"
     cd /tmp
-    rm -rf Stockfish
-    git clone --depth=1 https://github.com/official-stockfish/Stockfish.git
-    cd Stockfish/src
-    make -j$(nproc) build ARCH=armv8
-    cp stockfish "$INSTALL_DIR/$ENGINE_NAME"
-    chmod +x "$INSTALL_DIR/$ENGINE_NAME"
-    cd "$INSTALL_DIR"
-    rm -rf /tmp/Stockfish
-    echo "Stockfish compiled successfully."
+    wget -q --show-progress -O stockfish-linux-armv8.tar "$SF_URL" \
+        && tar -xf stockfish-linux-armv8.tar \
+        && cp stockfish/stockfish-linux-armv8 "$INSTALL_DIR/$ENGINE_NAME" \
+        && chmod +x "$INSTALL_DIR/$ENGINE_NAME" \
+        && rm -rf /tmp/stockfish /tmp/stockfish-linux-armv8.tar \
+        && echo "Stockfish downloaded successfully." \
+        || {
+            echo "Pre-built download failed — falling back to compiling from source..."
+            rm -rf /tmp/Stockfish
+            git clone --depth=1 https://github.com/official-stockfish/Stockfish.git
+            cd Stockfish/src
+            make -j$(nproc) build ARCH=armv8 || { echo "ERROR: Stockfish compilation failed."; exit 1; }
+            cp stockfish "$INSTALL_DIR/$ENGINE_NAME"
+            chmod +x "$INSTALL_DIR/$ENGINE_NAME"
+            cd "$INSTALL_DIR"
+            rm -rf /tmp/Stockfish
+            echo "Stockfish compiled successfully."
+        }
 else
-    echo "Stockfish already compiled, skipping..."
+    echo "Stockfish already installed, skipping..."
 fi
 
 # Step 6: Desktop launcher (skip if Pi-Apps — it handles this)
