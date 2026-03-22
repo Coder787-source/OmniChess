@@ -17,12 +17,16 @@ fi
 if [ -d "$HOME/OmniChess" ]; then
     rm -rf "$HOME/OmniChess"
     echo "Removed $HOME/OmniChess"
+else
+    echo "Install directory not found, skipping..."
 fi
 
 # 2. Remove desktop shortcut
 if [ -f "$HOME/Desktop/OmniChess.desktop" ]; then
     rm -f "$HOME/Desktop/OmniChess.desktop"
     echo "Removed desktop shortcut"
+else
+    echo "Desktop shortcut not found, skipping..."
 fi
 
 # 3. Remove local app menu entry
@@ -31,22 +35,35 @@ if [ -f "$HOME/.local/share/applications/omnichess.desktop" ]; then
     echo "Removed local menu entry"
 fi
 
-# 4. Remove system-wide menu entry
-sudo rm -f /usr/share/applications/omnichess.desktop
-echo "Removed system menu entry"
+# 4. Remove system-wide menu entry and CLI launcher (skip if Pi-Apps)
+if [ "$PIAPPS" = false ]; then
+    if [ -f "/usr/share/applications/omnichess.desktop" ]; then
+        sudo rm -f /usr/share/applications/omnichess.desktop
+        echo "Removed system menu entry"
+    else
+        echo "System menu entry not found, skipping..."
+    fi
 
-# 5. Remove CLI launcher
-sudo rm -f /usr/local/bin/omnichess
-echo "Removed CLI launcher"
+    if [ -f "/usr/local/bin/omnichess" ]; then
+        sudo rm -f /usr/local/bin/omnichess
+        echo "Removed CLI launcher"
+    else
+        echo "CLI launcher not found, skipping..."
+    fi
 
-# 6. Refresh menu
-sudo update-desktop-database /usr/share/applications/ 2>/dev/null
-update-desktop-database "$HOME/.local/share/applications/" 2>/dev/null
-xdg-desktop-menu forceupdate --novendor 2>/dev/null
-rm -rf "$HOME/.cache/menus" 2>/dev/null
+    # Refresh menu
+    sudo update-desktop-database /usr/share/applications/ 2>/dev/null
+    update-desktop-database "$HOME/.local/share/applications/" 2>/dev/null
+    xdg-desktop-menu forceupdate --novendor 2>/dev/null
+    rm -rf "$HOME/.cache/menus" 2>/dev/null
+else
+    echo "Skipping system file removal — Pi-Apps handles this"
+fi
 
 echo "======================================"
 echo "OmniChess uninstalled successfully!"
-echo "Please log out and back in if it"
-echo "still appears in the menu."
+if [ "$PIAPPS" = false ]; then
+    echo "Please log out and back in if it"
+    echo "still appears in the menu."
+fi
 echo "======================================"
