@@ -35,7 +35,11 @@ if [ -f "$HOME/.local/share/applications/omnichess.desktop" ]; then
     echo "Removed local menu entry"
 fi
 
-# 4. Remove system-wide menu entry and CLI launcher (skip if Pi-Apps)
+# 4. Clean up any leftover temp files from a failed install
+rm -rf /tmp/Stockfish /tmp/stockfish /tmp/stockfish-linux-armv8.tar 2>/dev/null
+echo "Cleaned up temp files"
+
+# 5. Remove system-wide menu entry and CLI launcher (skip if Pi-Apps)
 if [ "$PIAPPS" = false ]; then
     if [ -f "/usr/share/applications/omnichess.desktop" ]; then
         sudo rm -f /usr/share/applications/omnichess.desktop
