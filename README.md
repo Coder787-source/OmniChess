@@ -167,4 +167,4 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 - **Stockfish Engine** — Developed by the [Stockfish team](https://stockfishchess.org/).
 - **Puzzles** — Powered by the [Lichess.org](https://lichess.org) open API.
-- **Developer** — Coder787
+- **Developer** — Coder787-source
