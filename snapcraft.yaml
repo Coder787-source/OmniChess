@@ -1,0 +1,76 @@
+name: omnichess
+version: '1.2.1'
+summary: Lightweight chess app powered by Stockfish
+description: |
+  OmniChess is an open-source chess application built entirely in Python.
+  Features Stockfish engine integration, 8 difficulty levels, custom ELO mode,
+  local multiplayer, Lichess puzzles, post-game analysis, seasonal board themes,
+  eval bar, hints, takebacks, board coordinates, and PGN export.
+  Fully offline once installed (puzzles require internet).
+
+grade: stable
+confinement: strict
+base: core22
+
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+
+apps:
+  omnichess:
+    command: bin/launcher
+    plugs:
+      - home
+      - network
+      - audio-playback
+      - opengl
+      - x11
+      - wayland
+      - desktop
+      - desktop-legacy
+
+parts:
+  stockfish:
+    plugin: nil
+    override-build: |
+      apt-get install -y git g++ make
+      git clone https://github.com/official-stockfish/Stockfish.git
+      cd Stockfish/src
+      if [ "$(uname -m)" = "aarch64" ]; then
+        make -j$(nproc) build ARCH=armv8
+      else
+        make -j$(nproc) build ARCH=x86-64-avx2
+      fi
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp stockfish $SNAPCRAFT_PART_INSTALL/bin/stockfish
+      chmod +x $SNAPCRAFT_PART_INSTALL/bin/stockfish
+
+  omnichess:
+    plugin: python
+    source: .
+    python-requirements:
+      - requirements.txt
+    stage-packages:
+      - python3-pygame
+      - python3-numpy
+      - fonts-dejavu
+      - fonts-symbola
+      - libsdl2-2.0-0
+      - libsdl2-mixer-2.0-0
+      - libsdl2-image-2.0-0
+    override-build: |
+      snapcraftctl build
+      # Copy the correct script based on architecture
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      if [ "$(uname -m)" = "aarch64" ]; then
+        cp OmniChess-Linux-ARM.py $SNAPCRAFT_PART_INSTALL/bin/omnichess.py
+      else
+        cp OmniChess-Linux-x86_64.py $SNAPCRAFT_PART_INSTALL/bin/omnichess.py
+      fi
+      # Create launcher script
+      cat > $SNAPCRAFT_PART_INSTALL/bin/launcher << 'EOF'
+      #!/bin/bash
+      export STOCKFISH_PATH=$SNAP/bin/stockfish
+      python3 $SNAP/bin/omnichess.py
+      EOF
+      chmod +x $SNAPCRAFT_PART_INSTALL/bin/launcher
