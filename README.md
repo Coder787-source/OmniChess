@@ -2,17 +2,9 @@
 # OmniChess
 An open-source chess project developed entirely in Python.
 
-![OmniChess gameplay](gameplay.png) 
-
-![OmniChess icon](icon-64.png) **Developed by Keshav.K (coder787-source)**
-
----
-
-## 📦 Get it on Linux
+![OmniChess gameplay](gameplay.png) ![OmniChess icon](icon-64.png)
 
 [![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/omnichess-coder787)
-
-**Install Command:** `sudo snap install omnichess-coder787`
 
 ---
 
@@ -54,42 +46,91 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/inst
 wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/uninstall.sh](https://raw.githubusercontent.com/Coder787-source/OmniChess/main/uninstall.sh) | bash
 ```
 
+> ⚠️ **Note:** Stockfish compilation is optimised for your hardware and may take 3–30 minutes depending on your Pi model.
+
 ---
 
 ## 💻 Other Platforms
 
 ### 🪟 Windows x86-64
 
-1. Download the **x86-64 AVX2** Stockfish binary and rename it to `stockfish-windows-x86-64-avx2.exe`.
+> ⚠️ **Note:** Make sure Python is installed and added to PATH. During Python installation, check **"Add Python to PATH"** before clicking Install.
+
+1. Download the **x86-64 AVX2** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-x86-64-avx2.exe`.
 2. Place it in the same folder as `OmniChess-Windows-x86-64.py`.
-3. Install requirements: `pip install pygame python-chess`.
-4. Run: `python OmniChess-Windows-x86-64.py`.
+3. Install requirements:
+   ```bash
+   pip install pygame python-chess
+   ```
+4. Run:
+   ```bash
+   python OmniChess-Windows-x86-64.py
+   ```
 
 ---
 
 ### 🪟 Windows ARM64
 
-1. Download the **ARM64** Stockfish binary and rename it to `stockfish-windows-arm64.exe`.
+1. Download the **ARM64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-arm64.exe`.
 2. Place it in the same folder as `OmniChess-Windows-ARM.py`.
-3. Install: `pip install pygame python-chess`.
-4. Run: `python OmniChess-Windows-ARM.py`.
+3. Install requirements:
+   ```bash
+   pip install pygame python-chess
+   ```
+4. Run:
+   ```bash
+   python OmniChess-Windows-ARM.py
+   ```
+
+---
+
+### 🐧 Linux x86-64 (Manual)
+
+1. Install Symbola font:
+   ```bash
+   sudo apt install fonts-symbola
+   ```
+2. Download the **Linux x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-linux-x86_64`.
+3. Make it executable:
+   ```bash
+   chmod +x stockfish-linux-x86_64
+   ```
+4. Install requirements:
+   ```bash
+   pip3 install pygame python-chess --break-system-packages
+   ```
+5. Run:
+   ```bash
+   python3 OmniChess-Linux-x86_64.py
+   ```
 
 ---
 
 ### 🍎 macOS (Apple Silicon)
 
-1. Download the **macOS Apple Silicon** Stockfish binary and rename it to `stockfish-macos-m1-apple-silicon`.
-2. Remove the quarantine flag: `xattr -d com.apple.quarantine stockfish-macos-m1-apple-silicon`.
-3. Make it executable: `chmod +x stockfish-macos-m1-apple-silicon`.
-4. Run: `python3 OmniChess-macOS-ARM.py`.
+1. Download the **macOS Apple Silicon** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-macos-m1-apple-silicon`.
+2. Remove the quarantine flag and make it executable:
+   ```bash
+   xattr -d com.apple.quarantine stockfish-macos-m1-apple-silicon
+   chmod +x stockfish-macos-m1-apple-silicon
+   ```
+3. If macOS still blocks it, go to **System Settings → Privacy & Security** and click **Allow Anyway**.
+4. Install requirements:
+   ```bash
+   pip3 install pygame python-chess
+   ```
+5. Run:
+   ```bash
+   python3 OmniChess-macOS-ARM.py
+   ```
 
 ---
 
 ## 📋 Requirements
 
-- **Python 3.8+**
-- **pygame**
-- **python-chess**
+- **Python 3.8+** — [python.org/downloads](https://www.python.org/downloads/)
+- **pygame** — `pip install pygame`
+- **python-chess** — `pip install python-chess`
 - **Symbola font** — for correct chess piece rendering on Linux (`sudo apt install fonts-symbola`)
 
 ---
@@ -98,12 +139,3 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unin
 
 - **Stockfish Engine** — Developed by the [Stockfish team](https://stockfishchess.org/).
 - **Puzzles** — Powered by the [Lichess.org](https://lichess.org) open API.
-- **Developer** — Keshav.K (Coder787-source)
-```
-
-### **What’s back in this version:**
-* **The Icon:** `icon-64.png` is back right next to your developer name.
-* **The Preview:** `gameplay.png` is the first thing people see.
-* **The Snap Badge:** Placed in its own "Get it on Linux" section for maximum visibility.
-
-**Since your v1.2.1 is officially on the Snap Store, do you want me to add a "Version History" section to the bottom of the README to track your future updates?**
