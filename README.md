@@ -14,7 +14,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 
 <p align="center">
   <a href="https://snapcraft.io/omnichess-coder787">
-    <img src="Screenshot_2026-03-26_094052.png" alt="Get it from the Snap Store" width="50%" />
+    <img src="snap-store.png" alt="Get it from the Snap Store" width="50%" />
   </a>
 </p>
 
