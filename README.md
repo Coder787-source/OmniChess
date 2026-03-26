@@ -2,9 +2,10 @@
 # OmniChess
 An open-source chess project developed entirely in Python.
 
-| Gameplay Preview | Get it on Linux |
-| :---: | :---: |
-| ![OmniChess gameplay](gameplay.png) | [![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/omnichess-coder787) <br><br> `sudo snap install omnichess-coder787` |
+![OmniChess gameplay](gameplay.png)
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/omnichess-coder787)
+
+**Install on Linux:** `sudo snap install omnichess-coder787`
 
 ---
 
@@ -54,40 +55,28 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unin
 
 ### 🪟 Windows x86-64
 
-> ⚠️ **Note:** Make sure Python is installed and added to PATH. During Python installation, check **"Add Python to PATH"** before clicking Install.
+> ⚠️ **Note:** Make sure Python is installed and added to PATH.
 
-1. Download the **x86-64 AVX2** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-x86-64-avx2.exe`.
+1. Download the **x86-64 AVX2** Stockfish binary and rename it to `stockfish-windows-x86-64-avx2.exe`.
 2. Place it in the same folder as `OmniChess-Windows-x86-64.py`.
-3. Install requirements:
-   ```
-   pip install pygame python-chess
-   ```
-4. Run:
-   ```
-   python OmniChess-Windows-x86-64.py
-   ```
+3. Install requirements: `pip install pygame python-chess`.
+4. Run: `python OmniChess-Windows-x86-64.py`.
 
 ---
 
 ### 🪟 Windows ARM64
 
-1. Download the **ARM64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-arm64.exe`.
+1. Download the **ARM64** Stockfish binary and rename it to `stockfish-windows-arm64.exe`.
 2. Place it in the same folder as `OmniChess-Windows-ARM.py`.
-3. Install requirements:
-   ```
-   pip install pygame python-chess
-   ```
-4. Run:
-   ```
-   python OmniChess-Windows-ARM.py
-   ```
+3. Install requirements: `pip install pygame python-chess`.
+4. Run: `python OmniChess-Windows-ARM.py`.
 
 ---
 
 ### 🐧 Linux x86-64 (Manual)
 
 1. Install Symbola font: `sudo apt install fonts-symbola`.
-2. Download the **Linux x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-linux-x86_64`.
+2. Download the **Linux x86-64** Stockfish binary and rename it to `stockfish-linux-x86_64`.
 3. Make it executable: `chmod +x stockfish-linux-x86_64`.
 4. Install requirements: `pip3 install pygame python-chess --break-system-packages`.
 5. Run: `python3 OmniChess-Linux-x86_64.py`.
@@ -96,7 +85,7 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unin
 
 ### 🍎 macOS (Apple Silicon)
 
-1. Download the **macOS Apple Silicon** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-macos-m1-apple-silicon`.
+1. Download the **macOS Apple Silicon** Stockfish binary and rename it to `stockfish-macos-m1-apple-silicon`.
 2. Remove the quarantine flag: `xattr -d com.apple.quarantine stockfish-macos-m1-apple-silicon`.
 3. Make it executable: `chmod +x stockfish-macos-m1-apple-silicon`.
 4. Install requirements: `pip3 install pygame python-chess`.
@@ -106,10 +95,10 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unin
 
 ## 📋 Requirements
 
-- **Python 3.8+** — [python.org/downloads](https://www.python.org/downloads/)
-- **pygame** — `pip install pygame`
-- **python-chess** — `pip install python-chess`
-- **Symbola font** — Required for Linux chess pieces (`sudo apt install fonts-symbola`)
+- **Python 3.8+**
+- **pygame**
+- **python-chess**
+- **Symbola font** (Linux only)
 
 ---
 
@@ -120,6 +109,8 @@ wget -qO- [https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unin
 - **Developer** — Keshav.K (Coder787-source)
 ```
 
-That looks like a top-tier repository now. Your **v1.2.1** release is front-and-center, and the layout is clean.
+**Why this version is safer:**
+* **Direct Markdown Links:** By removing the HTML table, GitHub will find `gameplay.png` much more reliably as long as that file is in your main repository folder.
+* **Standard Spacing:** The images will appear one after another vertically, which is the most compatible way to display them on both mobile and desktop browsers.
 
-**Would you like me to help you generate a "Release Note" for the Snap Store and GitHub to announce the 1.2.1 update?**
+**Check if the `gameplay.png` file is spelled exactly like that in your repository—even a capital 'G' can break the link! Would you like me to double-check the install script for you too?**
