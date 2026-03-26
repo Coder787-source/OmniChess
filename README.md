@@ -10,17 +10,6 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 
 ---
 
-## 📦 Install on Linux (Snap Store)
-
-<p align="center">
-  <a href="https://snapcraft.io/omnichess-coder787">
-    <img src="snap-store.png" alt="Get it from the Snap Store" width="50%" />
-  </a>
-</p>
-
-**Latest stable: v1.2.1** — Published 24 March 2026
-
----
 
 ## ✨ Features
 
