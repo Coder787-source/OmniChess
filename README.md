@@ -11,7 +11,8 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 <img src="icon-64.png" alt="OmniChess icon" width="10%" />
 </p>
 
-> 🚀 **Just want to play?** Download the ready-to-run executable from [OmniChess-Portable](https://github.com/Coder787-source/OmniChess-Portable) — no Python, no setup, just download and go!
+> > 🚀 **Just want to play?** Download the ready-to-run executable from [OmniChess-Portable](https://github.com/Coder787-source/OmniChess-Portable) — no Python, no setup, just download and go!
+
 
 ---
 
