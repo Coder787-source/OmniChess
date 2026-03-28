@@ -6,9 +6,9 @@
 An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles.
 
 <p align="center">
-  <img src="gameplay.png" alt="OmniChess gameplay" width="45%" />
-  &nbsp;&nbsp;
-  <img src="icon-64.png" alt="OmniChess icon" width="10%" />
+<img src="gameplay.png" alt="OmniChess gameplay" width="45%" />
+&nbsp;&nbsp;
+<img src="icon-64.png" alt="OmniChess icon" width="10%" />
 </p>
 
 > 🚀 **Just want to play?** Download the ready-to-run executable from [OmniChess-Portable](https://github.com/Coder787-source/OmniChess-Portable) — no Python, no setup, just download and go!
