@@ -1,4 +1,4 @@
- # OmniChess
+# OmniChess
 
 An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles.
 
@@ -22,6 +22,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 - **Post-Game PGN Export** — Download any game to analyse on chess.com or lichess.org
 - **Rematch** — Instantly replay against the same opponent with one click
 - **Eval Bar** — Live evaluation bar shows who's winning throughout the game
+- **Move Sounds** — Distinct audio cues for moves and captures
 - **Hints** — Up to 3 engine-powered hints per game
 - **Takebacks** — Undo moves with limits that scale with difficulty level
 - **Board Coordinates** — a–h and 1–8 labels that flip with your perspective
@@ -202,4 +203,3 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 ------------------------------------------------------------
   ## 📰 Featured In
 - [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
-
