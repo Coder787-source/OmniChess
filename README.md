@@ -8,9 +8,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
   <img src="icon-64.png" alt="OmniChess icon" width="10%" />
 </p>
 
-
 ---
-
 
 ## ✨ Features
 
@@ -30,7 +28,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 - **Board Themes** — Multiple year-round colour options, cycle with the **T** key
 - **Anti-Cheat** — Fullscreen lockdown during gameplay blocks external assistance
 - **Fully Offline** — Works without an internet connection once installed *(puzzles require internet)*
-- **Cross-Platform** — Windows (x86-64 & ARM64), Linux (x86-64 & ARM), and macOS (Apple Silicon)
+- **Cross-Platform** — Windows 10/11 (x86-64 & ARM64), Linux (x86-64 & ARM), and macOS (Apple Silicon & Intel)
 
 ---
 
@@ -116,13 +114,13 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ---
 
-### 🪟 Windows x86-64
+### 🪟 Windows 10/11 x86-64
 
 > ⚠️ Make sure Python is installed and **added to PATH**. During installation, check **"Add Python to PATH"** before clicking Install.
 
 1. Download the **x86-64 AVX2** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-x86-64-avx2.exe`.
 
-2. Place it in the same folder as `OmniChess-Windows-x86-64.py`.
+2. Place it in the same folder as `OmniChess-Windows10-11-x86-64.py`.
 
 3. Install Python dependencies:
    ```
@@ -131,19 +129,19 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 4. Run:
    ```
-   python OmniChess-Windows-x86-64.py
+   python OmniChess-Windows10-11-x86-64.py
    ```
    > If `python` doesn't work, try `python3`.
 
 ---
 
-### 🪟 Windows ARM64
+### 🪟 Windows 10/11 ARM64
 
 > ⚠️ Make sure Python is installed and **added to PATH**. During installation, check **"Add Python to PATH"** before clicking Install.
 
 1. Download the **ARM64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-arm64.exe`.
 
-2. Place it in the same folder as `OmniChess-Windows-ARM.py`.
+2. Place it in the same folder as `OmniChess-Windows10-11-ARM64.py`.
 
 3. Install Python dependencies:
    ```
@@ -152,7 +150,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 4. Run:
    ```
-   python OmniChess-Windows-ARM.py
+   python OmniChess-Windows10-11-ARM64.py
    ```
    > If `python` doesn't work, try `python3`.
 
@@ -177,7 +175,31 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 5. Run:
    ```bash
-   python3 OmniChess-macOS-ARM.py
+   python3 OmniChess-MacOS-ARM.py
+   ```
+
+---
+
+### 🍎 macOS (Intel)
+
+1. Download the **macOS x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-macos-x86-64`.
+
+2. Remove the quarantine flag and make it executable:
+   ```bash
+   xattr -d com.apple.quarantine stockfish-macos-x86-64
+   chmod +x stockfish-macos-x86-64
+   ```
+
+3. If macOS still blocks it, go to **System Settings → Privacy & Security** and click **Allow Anyway**.
+
+4. Install Python dependencies:
+   ```bash
+   pip3 install pygame python-chess
+   ```
+
+5. Run:
+   ```bash
+   python3 OmniChess-MacOS-Intel-x86.py
    ```
 
 ---
@@ -200,6 +222,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 - **Puzzles** — Powered by the [Lichess.org](https://lichess.org) open API
 - **Developer** — [Coder787-source](https://github.com/Coder787-source)
 
-------------------------------------------------------------
-  ## 📰 Featured In
+---
+
+## 📰 Featured In
 - [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
