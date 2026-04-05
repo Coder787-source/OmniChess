@@ -95,7 +95,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
    sudo apt install fonts-symbola
    ```
 
-2. Download the **Linux x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-linux-x86_64`.
+2. Download the **Linux x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/). Open `OmniChess-Linux-x86_64.py` in a text editor, find the `STOCKFISH_PATH` variable at the top, and rename your binary to match that name exactly.
 
 3. Make it executable:
    ```bash
@@ -118,7 +118,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 > ⚠️ Make sure Python is installed and **added to PATH**. During installation, check **"Add Python to PATH"** before clicking Install.
 
-1. Download the **x86-64 AVX2** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-x86-64-avx2.exe`.
+1. Download the **x86-64 AVX2** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/). Open `OmniChess-Windows10-11-x86-64.py` in a text editor, find the `STOCKFISH_PATH` variable at the top, and rename your binary to match that name exactly.
 
 2. Place it in the same folder as `OmniChess-Windows10-11-x86-64.py`.
 
@@ -139,7 +139,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 > ⚠️ Make sure Python is installed and **added to PATH**. During installation, check **"Add Python to PATH"** before clicking Install.
 
-1. Download the **ARM64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-windows-arm64.exe`.
+1. Download the **ARM64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/). Open `OmniChess-Windows10-11-ARM64.py` in a text editor, find the `STOCKFISH_PATH` variable at the top, and rename your binary to match that name exactly.
 
 2. Place it in the same folder as `OmniChess-Windows10-11-ARM64.py`.
 
@@ -158,7 +158,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ### 🍎 macOS (Apple Silicon)
 
-1. Download the **macOS Apple Silicon** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-macos-m1-apple-silicon`.
+1. Download the **macOS Apple Silicon** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/). Open `OmniChess-MacOS-ARM.py` in a text editor, find the `STOCKFISH_PATH` variable at the top, and rename your binary to match that name exactly.
 
 2. Remove the quarantine flag and make it executable:
    ```bash
@@ -182,7 +182,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ### 🍎 macOS (Intel)
 
-1. Download the **macOS x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/) and rename it to `stockfish-macos-x86-64`.
+1. Download the **macOS x86-64** Stockfish binary from [stockfishchess.org](https://stockfishchess.org/download/). Open `OmniChess-MacOS-Intel-x86.py` in a text editor, find the `STOCKFISH_PATH` variable at the top, and rename your binary to match that name exactly.
 
 2. Remove the quarantine flag and make it executable:
    ```bash
