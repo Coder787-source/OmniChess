@@ -1,14 +1,12 @@
-
-```markdown
 # OmniChess
 
-An open-source chess game built entirely in Python - play against Stockfish, a friend, or tackle Lichess puzzles.
+An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles.
 
-<img src="gameplay.png" alt="OmniChess gameplay" width="45%" align="center" />
-
-<br />
-
-<img src="icon-64.png" alt="OmniChess icon" width="10%" align="center" />
+<p align="center">
+  <img src="gameplay.png" alt="OmniChess gameplay" width="45%" />
+  &nbsp;&nbsp;
+  <img src="icon-64.png" alt="OmniChess icon" width="10%" />
+</p>
 
 ---
 
@@ -101,7 +99,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 3. Make it executable:
    ```bash
-   chmod +x stockfish-linux-x86-64
+   chmod +x stockfish-linux-x86_64
    ```
 
 4. Install Python dependencies:
@@ -206,6 +204,18 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ---
 
+## 📋 Requirements
+
+| Requirement | Details |
+|---|---|
+| Python | 3.8+ — [python.org/downloads](https://www.python.org/downloads/) |
+| pygame | `pip install pygame` |
+| python-chess | `pip install python-chess` |
+| Symbola font | Linux only — `sudo apt install fonts-symbola` |
+| Stockfish | Download from [stockfishchess.org](https://stockfishchess.org/download/) |
+
+---
+
 ## 🔧 Unsupported Operating Systems
 
 OmniChess is officially tested and supported only on **Windows 10/11 (x86-64 & ARM64)**, **Linux (x86-64 & ARM/Raspberry Pi)**, and **macOS (Apple Silicon & Intel)**.
@@ -222,18 +232,6 @@ You are welcome to try running OmniChess on other operating systems — includin
 
 ---
 
-## 📋 Requirements
-
-| Requirement | Details |
-|---|---|
-| Python | 3.8+ — [python.org/downloads](https://www.python.org/downloads/) |
-| pygame | `pip install pygame` |
-| python-chess | `pip install python-chess` |
-| Symbola font | Linux only — `sudo apt install fonts-symbola` |
-| Stockfish | Download from [stockfishchess.org](https://stockfishchess.org/download/) |
-
----
-
 ## 🤝 Credits
 
 - **Stockfish Engine** — [stockfishchess.org](https://stockfishchess.org/)
@@ -243,8 +241,4 @@ You are welcome to try running OmniChess on other operating systems — includin
 ---
 
 ## 📰 Featured In
-- [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
-```
-- No indentation inside the image tags
-
-This should render properly on GitHub.
+- [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053) 
