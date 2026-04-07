@@ -1,3 +1,6 @@
+
+
+```markdown
 # OmniChess
 
 An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles.
@@ -204,6 +207,22 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ---
 
+## 🔧 Unsupported Operating Systems
+
+OmniChess is officially tested and supported only on **Windows 10/11 (x86-64 & ARM64)**, **Linux (x86-64 & ARM/Raspberry Pi)**, and **macOS (Apple Silicon & Intel)**.
+
+You are welcome to try running OmniChess on other operating systems — including **Windows 8, 8.1, ChromeOS, FreeBSD, or older macOS versions** — but it will **not be officially supported**. If you choose to do so:
+
+- ⚠️ **No technical support** will be provided for installation or runtime issues
+- ⚠️ **Stockfish compilation** may fail or require significant manual tweaking
+- ⚠️ **Pygame and python-chess** may have compatibility problems
+- ⚠️ **Windows 8/8.1** users: Python 3.8+ and modern pygame versions may not function correctly
+- ⚠️ **ChromeOS** users: Linux container limitations (Wayland, audio, input) can cause unpredictable behaviour
+
+> 💡 **Recommendation**: For the best experience, use one of the officially supported platforms listed above.
+
+---
+
 ## 📋 Requirements
 
 | Requirement | Details |
@@ -226,3 +245,4 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ## 📰 Featured In
 - [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
+```
