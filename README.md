@@ -6,9 +6,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 
 <p align="center">
   <img src="gameplay.png" alt="OmniChess gameplay" width="45%" />
-</p>
-
-<p align="center">
+  &nbsp;&nbsp;
   <img src="icon-64.png" alt="OmniChess icon" width="10%" />
 </p>
 
