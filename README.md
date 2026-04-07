@@ -2,15 +2,13 @@
 ```markdown
 # OmniChess
 
-An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles.
+An open-source chess game built entirely in Python - play against Stockfish, a friend, or tackle Lichess puzzles.
 
-<div align="center">
-  <img src="gameplay.png" alt="OmniChess gameplay" width="45%" />
-</div>
+<img src="gameplay.png" alt="OmniChess gameplay" width="45%" align="center" />
 
-<div align="center">
-  <img src="icon-64.png" alt="OmniChess icon" width="10%" />
-</div>
+<br />
+
+<img src="icon-64.png" alt="OmniChess icon" width="10%" align="center" />
 
 ---
 
@@ -227,7 +225,7 @@ You are welcome to try running OmniChess on other operating systems — includin
 ## 📋 Requirements
 
 | Requirement | Details |
-|-------------|---------|
+|---|---|
 | Python | 3.8+ — [python.org/downloads](https://www.python.org/downloads/) |
 | pygame | `pip install pygame` |
 | python-chess | `pip install python-chess` |
@@ -247,3 +245,6 @@ You are welcome to try running OmniChess on other operating systems — includin
 ## 📰 Featured In
 - [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
 ```
+- No indentation inside the image tags
+
+This should render properly on GitHub.
