@@ -4,11 +4,13 @@
 
 An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles.
 
-<p align="center">
+<div align="center">
   <img src="gameplay.png" alt="OmniChess gameplay" width="45%" />
-  &nbsp;&nbsp;
+</div>
+
+<div align="center">
   <img src="icon-64.png" alt="OmniChess icon" width="10%" />
-</p>
+</div>
 
 ---
 
@@ -101,7 +103,7 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 3. Make it executable:
    ```bash
-   chmod +x stockfish-linux-x86_64
+   chmod +x stockfish-linux-x86-64
    ```
 
 4. Install Python dependencies:
@@ -225,7 +227,7 @@ You are welcome to try running OmniChess on other operating systems — includin
 ## 📋 Requirements
 
 | Requirement | Details |
-|---|---|
+|-------------|---------|
 | Python | 3.8+ — [python.org/downloads](https://www.python.org/downloads/) |
 | pygame | `pip install pygame` |
 | python-chess | `pip install python-chess` |
