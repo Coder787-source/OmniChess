@@ -1,6 +1,3 @@
-I'll update your README.md with all the requested changes. Here's the complete updated version:
-
-```markdown
 # OmniChess
 
 An open-source chess game built entirely in Python — play against Stockfish, a friend, or tackle Lichess puzzles. **Now available as BOTH a desktop application AND a web version (zero install)!**
@@ -59,6 +56,8 @@ Play instantly in your browser — no installation required!
 **Limitations:**
 - No anti-cheat fullscreen lockdown (browser security restrictions)
 - Requires an internet connection (no offline mode)
+
+---
 
 ---
 
@@ -236,8 +235,6 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 
 ## 📋 Requirements
 
-### Desktop Version
-
 | Requirement | Details |
 |---|---|
 | Python | 3.8+ — [python.org/downloads](https://www.python.org/downloads/) |
@@ -246,45 +243,21 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 | Symbola font | Linux only — `sudo apt install fonts-symbola` |
 | Stockfish | Download from [stockfishchess.org](https://stockfishchess.org/download/) |
 
-### Web Version
-
-| Requirement | Details |
-|---|---|
-| Browser | Any modern browser (Chrome, Firefox, Safari, Edge) |
-| Internet | Required for gameplay |
-| JavaScript | Must be enabled |
-
 ---
 
-## 📱 Supported Platforms
+## 🔧 Unsupported Operating Systems
 
-### Desktop (Officially Tested)
-- **Windows 10/11** — x86-64 & ARM64
-- **Linux** — x86-64 & ARM/Raspberry Pi
-- **macOS** — Apple Silicon & Intel
+OmniChess is officially tested and supported only on **Windows 10/11 (x86-64 & ARM64)**, **Linux (x86-64 & ARM/Raspberry Pi)**, and **macOS (Apple Silicon & Intel)**.
 
-### Web (Works Anywhere)
-- **ChromeOS** — No Linux container needed, runs directly in Chrome
-- **Windows/Mac/Linux** — No installation required
-- **School/work computers** — Works without admin rights
-- **Mobile devices** — Play on tablets and phones with a browser
+You are welcome to try running OmniChess on other operating systems — including **Windows 8, 8.1, ChromeOS, FreeBSD, or older macOS versions** — but it will **not be officially supported**. If you choose to do so:
 
----
-
-## 🔧 Unsupported Operating Systems (Desktop Only)
-
-OmniChess Desktop is **not officially supported** on the following platforms:
-
-- **Windows 8 / 8.1** — Python 3.8+ and modern pygame versions may not function correctly
-- **FreeBSD** — Stockfish compilation and pygame compatibility issues likely
-- **Older macOS versions** — Pre-Catalina systems may have compatibility problems
-
-> 💡 **ChromeOS users**: Instead of using the Linux container (which has Wayland, audio, and input limitations), we strongly recommend using the **[Web Version](https://coder787-source.github.io/OmniChess/)** for the best experience.
-
-If you choose to run the desktop version on unsupported platforms:
 - ⚠️ **No technical support** will be provided for installation or runtime issues
 - ⚠️ **Stockfish compilation** may fail or require significant manual tweaking
 - ⚠️ **Pygame and python-chess** may have compatibility problems
+- ⚠️ **Windows 8/8.1** users: Python 3.8+ and modern pygame versions may not function correctly
+- ⚠️ **ChromeOS** users: Linux container limitations (Wayland, audio, input) can cause unpredictable behaviour
+
+> 💡 **Recommendation**: For the best experience, use one of the officially supported platforms listed above.
 
 ---
 
@@ -297,5 +270,4 @@ If you choose to run the desktop version on unsupported platforms:
 ---
 
 ## 📰 Featured In
-- [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
-```
+- [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053) 
