@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniChess</title>
+<link rel="icon" type="image/png" href="icon-64.png">
+<meta property="og:title" content="OmniChess">
+<meta property="og:description" content="A fully featured chess game playable in your browser. No install required.">
+<meta property="og:image" content="https://coder787-source.github.io/OmniChess/icon-64.png">
+<meta property="og:url" content="https://coder787-source.github.io/OmniChess/">
+<meta property="og:type" content="website">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background:#1e1e1e; color:#ecf0f1; font-family:'Segoe UI',Arial,sans-serif; height:100vh; overflow:hidden; user-select:none; }
+
+/* Credit bar — matches draw_credits(): "ENGINE INTEGRATION BY STOCKFISH v18" centered at top */
+#credit-bar { position:fixed; top:5px; left:50%; transform:translateX(-50%); font-size:11px; color:#555555; font-family:'Courier New',monospace; z-index:10; white-space:nowrap; }
+
+/* ── MENU ── */
+#menu { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; gap:14px; }
+#menu-title { font-size:50px; font-weight:bold; color:#f1c40f; margin-bottom:4px; }
+.menu-row { display:flex; gap:18px; align-items:flex-start; }
+.panel { background:#262421; border:2px solid #45423e; border-radius:10px; padding:14px 16px; }
+.panel-label { font-size:13px; font-weight:bold; color:#ecf0f1; margin-bottom:10px; letter-spacing:.5px; }
+#level-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; width:260px; }
+.btn { background:#45423e; border:none; border-radius:8px; color:#ecf0f1; font-family:inherit; font-size:15px; font-weight:bold; padding:10px 14px; cursor:pointer; transition:background .12s; }
+.btn:hover { background:#5a5652; }
+.btn.active { background:#f1c40f; color:#1e1e1e; }
+.btn.win { background:#2ecc71; color:#fff; }
+.btn.win:hover { background:#27ae60; }
+.btn.accent { background:#f1c40f; color:#1e1e1e; }
+.btn.accent:hover { background:#d4ac0d; }
+.btn.teal { background:#1baca1; color:#fff; }
+.btn.teal:hover { background:#178f86; }
+.btn.loss { background:#ff4757; color:#fff; }
+.btn:disabled { opacity:.45; cursor:default; }
+#elo-value { font-size:40px; font-weight:bold; text-align:center; padding:4px 0; font-family:'Courier New',monospace; }
+.elo-btns { display:flex; gap:6px; justify-content:center; }
+.color-row { display:flex; gap:8px; justify-content:center; margin-top:6px; }
+#timer-value { font-size:34px; font-weight:bold; color:#f1c40f; text-align:center; font-family:'Courier New',monospace; margin:4px 0; }
+.timer-btns { display:flex; gap:6px; justify-content:center; }
+#theme-hint { font-size:12px; color:#888888; text-align:center; }
+#theme-hint span { color:#f1c40f; }
+.menu-actions { display:flex; gap:12px; }
+.menu-actions .btn { font-size:16px; padding:12px 22px; }
+
+/* ── GAME ── */
+#game { display:none; width:100vw; height:100vh; align-items:center; justify-content:center; flex-direction:row; background:#1e1e1e; }
+#eval-wrap { display:flex; flex-direction:column; align-items:center; margin-right:18px; }
+#eval-score-text { font-size:12px; color:#f1c40f; font-family:'Courier New',monospace; margin-bottom:4px; min-height:16px; }
+#eval-bar { width:35px; height:600px; background:#404040; border-radius:4px; position:relative; overflow:hidden; }
+#eval-white-fill { position:absolute; bottom:0; left:0; width:100%; background:#ffffff; transition:height .35s ease; }
+#board-area { display:flex; flex-direction:column; }
+#board-and-ranks { display:flex; flex-direction:row; }
+#rank-labels { display:flex; flex-direction:column; width:14px; height:600px; }
+.rank-label { font-size:12px; color:#888888; font-family:'Courier New',monospace; text-align:center; flex:1; display:flex; align-items:center; justify-content:center; }
+canvas#board { display:block; cursor:pointer; }
+#file-labels { display:flex; flex-direction:row; width:600px; margin-left:14px; margin-top:2px; }
+.file-label { flex:1; text-align:center; font-size:12px; color:#888888; font-family:'Courier New',monospace; }
+#opening-display { font-size:13px; color:#aaddff; margin-top:4px; margin-left:14px; min-height:18px; font-family:'Courier New',monospace; }
+#season-display { font-size:12px; color:#f1c40f; margin-left:14px; min-height:16px; }
+
+/* ── SIDEBAR ── */
+#sidebar { width:350px; margin-left:40px; display:flex; flex-direction:column; gap:8px; }
+.player-card { background:#45423e; border-radius:10px; padding:10px 14px; min-height:100px; }
+.player-label { font-size:14px; font-weight:bold; color:#f1c40f; }
+.player-clock { font-size:38px; font-weight:bold; color:#ffffff; font-family:'Courier New',monospace; line-height:1.1; }
+.player-captures { font-size:20px; min-height:26px; margin-top:2px; }
+
+/* Move history box: matches Python — up to 14 moves in 2 columns */
+.move-history-box { background:#2c2c2c; border-radius:10px; padding:10px 14px; min-height:95px; }
+.move-history-title { font-size:11px; color:#888888; font-weight:bold; letter-spacing:1px; margin-bottom:4px; }
+#move-history-text {
+  font-size:13px; color:#ffffff; font-family:'Courier New',monospace; line-height:1.65;
+  display:grid; grid-template-columns:1fr 1fr; column-gap:6px;
+}
+
+.sidebar-btn-group { display:flex; flex-direction:column; gap:6px; }
+.sidebar-btn-group .btn { width:100%; text-align:center; padding:12px; font-size:15px; }
+
+/* ── OVERLAYS ── */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:50; gap:18px; }
+.overlay-title { font-size:46px; font-weight:bold; color:#f1c40f; }
+.promo-row { display:flex; gap:12px; }
+.promo-btn { width:65px; height:65px; background:#45423e; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:38px; cursor:pointer; border:none; transition:background .12s; }
+.promo-btn:hover { background:#f1c40f; }
+
+/* ── PUZZLE ── */
+#puzzle { display:none; width:100vw; height:100vh; align-items:center; justify-content:center; flex-direction:row; background:#1e1e1e; }
+#puzzle-sidebar { width:350px; margin-left:40px; display:flex; flex-direction:column; gap:8px; }
+.puzzle-info-card { background:#45423e; border-radius:10px; padding:12px 14px; }
+.puz-lbl { font-size:14px; font-weight:bold; color:#f1c40f; }
+.puz-sub { font-size:13px; color:#ffffff; margin-top:4px; }
+.puz-tiny { font-size:12px; color:#aaaaaa; margin-top:2px; }
+.puz-timer { font-size:12px; font-family:'Courier New',monospace; margin-top:2px; }
+#puzzle-status-banner { border-radius:10px; padding:12px; text-align:center; font-size:17px; font-weight:bold; display:none; }
+.banner-solved { background:#2ecc71; color:#fff; }
+.banner-failed { background:#ff4757; color:#fff; }
+#puzzle-feedback { font-size:12px; color:#aaddff; min-height:18px; font-family:'Courier New',monospace; }
+#board-area-puzzle { display:flex; flex-direction:column; }
+#board-and-ranks-puzzle { display:flex; flex-direction:row; }
+#rank-labels-puzzle { display:flex; flex-direction:column; width:14px; height:600px; }
+#file-labels-puzzle { display:flex; flex-direction:row; width:600px; margin-left:14px; margin-top:2px; }
+canvas#board-puzzle { display:block; cursor:pointer; }
+
+/* ── TOAST ── */
+#toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#262421; border:1px solid #f1c40f; color:#f1c40f; padding:9px 22px; border-radius:8px; font-size:13px; font-weight:bold; opacity:0; transition:opacity .3s; z-index:100; pointer-events:none; }
+#toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- draw_credits() → "ENGINE INTEGRATION BY STOCKFISH v18" -->
+<div id="credit-bar">ENGINE INTEGRATION BY STOCKFISH v18</div>
+
+<!-- ═══════════ MENU ═══════════ -->
+<div id="menu">
+  <div id="menu-title">OmniChess</div>
+  <div class="menu-row">
+    <div class="panel">
+      <div class="panel-label">ENGINE LEVEL</div>
+      <div id="level-grid"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">CUSTOM ELO MODE</div>
+      <div id="elo-value" style="color:#ffffff">1500</div>
+      <div class="elo-btns">
+        <button class="btn" onclick="adjustElo(-100)">-100</button>
+        <button class="btn" onclick="adjustElo(-10)">-10</button>
+        <button class="btn" onclick="adjustElo(10)">+10</button>
+        <button class="btn" onclick="adjustElo(100)">+100</button>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:center">
+    <div class="panel-label">PLAY AS:</div>
+    <div class="color-row">
+      <button class="btn active" id="btn-white" onclick="setUserColor('w')">WHITE</button>
+      <button class="btn" id="btn-black" onclick="setUserColor('b')">BLACK</button>
+    </div>
+  </div>
+  <div style="text-align:center">
+    <div class="panel-label">TIME CONTROL:</div>
+    <div id="timer-value">10:00</div>
+    <div class="timer-btns">
+      <button class="btn" onclick="adjustTimer(-60)">-60</button>
+      <button class="btn" onclick="adjustTimer(-10)">-10</button>
+      <button class="btn" onclick="adjustTimer(10)">+10</button>
+      <button class="btn" onclick="adjustTimer(60)">+60</button>
+    </div>
+  </div>
+  <!-- T = Board Theme | S = Seasonal On/Off — matches Python keyboard handler -->
+  <div id="theme-hint">T = Board Theme | S = Seasonal On/Off &nbsp;|&nbsp; Active: <span id="theme-name-display">New Year</span></div>
+  <div class="menu-actions">
+    <button class="btn teal" onclick="enterPuzzle()">DAILY PUZZLE</button>
+    <button class="btn win" onclick="startGame(false)">START</button>
+    <button class="btn accent" onclick="startGame(true)">LOCAL MULTIPLAYER</button>
+  </div>
+</div>
+
+<!-- ═══════════ GAME ═══════════ -->
+<div id="game">
+  <div id="eval-wrap">
+    <div id="eval-score-text">+0.0</div>
+    <div id="eval-bar"><div id="eval-white-fill" style="height:50%"></div></div>
+  </div>
+  <div id="board-area">
+    <div id="season-display"></div>
+    <div id="board-and-ranks">
+      <div id="rank-labels"></div>
+      <canvas id="board" width="600" height="600"></canvas>
+    </div>
+    <div id="file-labels"></div>
+    <div id="opening-display"></div>
+  </div>
+  <div id="sidebar">
+    <div class="player-card">
+      <div class="player-label" id="top-label">BOT (Black)</div>
+      <div class="player-clock" id="top-clock">10:00</div>
+      <div class="player-captures" id="top-captures"></div>
+    </div>
+    <div class="move-history-box">
+      <div class="move-history-title">MOVE HISTORY</div>
+      <!-- Python renders up to 14 most-recent moves in 2 columns of 7 -->
+      <div id="move-history-text"></div>
+    </div>
+    <div class="sidebar-btn-group">
+      <button class="btn" onclick="goMenu()">HOME MENU</button>
+      <!-- Hint button: yellow when available, red (#ff4757) when exhausted — matches Python -->
+      <button class="btn accent" id="hint-btn" onclick="useHint()">HINT (3 left)</button>
+      <button class="btn accent" onclick="downloadPGN()">DOWNLOAD PGN</button>
+      <!-- Takeback: yellow when can_takeback, red when cannot — matches Python tb_color logic -->
+      <button class="btn" id="takeback-btn" onclick="doTakeback()">TAKEBACK (8 left)</button>
+    </div>
+    <div class="player-card">
+      <div class="player-label" id="btm-label">YOU (White)</div>
+      <div class="player-clock" id="btm-clock">10:00</div>
+      <div class="player-captures" id="btm-captures"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PUZZLE ═══════════ -->
+<div id="puzzle">
+  <div id="board-area-puzzle">
+    <div id="board-and-ranks-puzzle">
+      <div id="rank-labels-puzzle"></div>
+      <canvas id="board-puzzle" width="600" height="600"></canvas>
+    </div>
+    <div id="file-labels-puzzle"></div>
+  </div>
+  <div id="puzzle-sidebar">
+    <div style="text-align:center;font-size:17px;font-weight:bold;color:#f1c40f;margin-bottom:4px">LICHESS PUZZLE</div>
+    <div class="puzzle-info-card">
+      <div class="puz-lbl" id="puz-turn">Loading...</div>
+      <div class="puz-sub" id="puz-progress">Progress: 0/0</div>
+      <!-- Difficulty in accent color, rating/themes in #aaaaaa — matches Python -->
+      <div class="puz-tiny" id="puz-diff" style="color:#f1c40f">Difficulty: NORMAL</div>
+      <div class="puz-tiny" id="puz-rating">Rating: ?</div>
+      <div class="puz-timer" id="puz-timer" style="color:#f1c40f">Time: 0s</div>
+    </div>
+    <div id="puzzle-status-banner"></div>
+    <div id="puzzle-feedback"></div>
+    <div class="sidebar-btn-group">
+      <button class="btn" onclick="fetchNewPuzzle()">NEW PUZZLE</button>
+      <button class="btn" onclick="goMenu()">BACK TO MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- Promotion overlay -->
+<div class="overlay" id="promo-overlay" style="display:none">
+  <div class="overlay-title">PROMOTE</div>
+  <div class="promo-row" id="promo-row"></div>
+</div>
+
+<!-- Game-over overlay — matches Python: CHECKMATE! / DRAW, BACK TO MENU, REMATCH, DOWNLOAD PGN -->
+<div class="overlay" id="gameover-overlay" style="display:none">
+  <div class="overlay-title" id="gameover-msg">CHECKMATE!</div>
+  <button class="btn win"    style="font-size:16px;padding:12px 28px" onclick="goMenu()">BACK TO MENU</button>
+  <button class="btn accent" style="font-size:16px;padding:12px 28px" onclick="rematch()">REMATCH</button>
+  <button class="btn"        style="font-size:16px;padding:12px 28px" onclick="downloadPGN()">DOWNLOAD PGN</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONSTANTS — direct port from Python source
+// ═══════════════════════════════════════════════════════════════════
+
+const BOARD_SIZE = 600;
+const SQ = 75; // 600 / 8
+
+// LEVEL_CONFIG: (depth, random_chance, think_ms)
+const LEVEL_CONFIG = {
+  1:[1,0.85,500], 2:[2,0.60,700], 3:[3,0.35,900],  4:[4,0.15,1100],
+  5:[5,0.05,1300],6:[7,0.0,1600], 7:[10,0.0,1800], 8:[15,0.0,2000],
+};
+
+// TAKEBACK_LIMITS — matches Python exactly
+const TAKEBACK_LIMITS = {1:8,2:8,3:4,4:4,5:2,6:2,7:1,8:1};
+
+// THEMES (light, dark)
+const THEMES = [
+  ["#eeeed2","#769656"],
+  ["#dee3e6","#8ca2ad"],
+  ["#ebecd0","#ba5546"],
+];
+
+// SEASONAL_THEMES — matches Python exactly
+const SEASONAL_THEMES = {
+  1: ["#f0f0f0","#c0a060","New Year"],
+  2: ["#ffe4e1","#c0394b","Valentine's"],
+  3: ["#d4edda","#2d7a3a","St. Patrick's"],
+  4: ["#fde8f0","#d4789a","Spring"],
+  5: ["#fffde7","#f9a825","May Flowers"],
+  6: ["#e3f2fd","#1565c0","Summer"],
+  7: ["#ffebee","#b71c1c","Independence"],
+  8: ["#e0f7fa","#00838f","Ocean"],
+  9: ["#fff3e0","#e65100","Autumn"],
+  10:["#1a1a1a","#ff6600","Halloween"],
+  11:["#fff8e1","#795548","Thanksgiving"],
+  12:["#ffebee","#1b5e20","Christmas"],
+};
+
+// SYMBOLS — matches Python dict (uppercase = white, lowercase = black)
+const SYMBOLS = {
+  P:'♙',N:'♘',B:'♗',R:'♖',Q:'♕',K:'♔',
+  p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚',
+};
+
+// ECO_OPENINGS — identical to Python
+const ECO_OPENINGS = {
+  "e2e4":"King's Pawn Opening","e2e4 e7e5":"Open Game","e2e4 e7e5 g1f3":"King's Knight Opening",
+  "e2e4 e7e5 g1f3 b8c6":"Three Knights","e2e4 e7e5 g1f3 b8c6 f1b5":"Ruy Lopez",
+  "e2e4 e7e5 g1f3 b8c6 f1c4":"Italian Game","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6":"Two Knights Defense",
+  "e2e4 e7e5 g1f3 b8c6 d2d4":"Scotch Game","e2e4 e7e5 g1f3 b8c6 d2d4 e5d4":"Scotch Game",
+  "e2e4 e7e5 g1f3 g8f6":"Petrov's Defense","e2e4 e7e5 f2f4":"King's Gambit",
+  "e2e4 e7e5 f2f4 e5f4":"King's Gambit Accepted","e2e4 e7e5 f1c4":"Bishop's Opening",
+  "e2e4 c7c5":"Sicilian Defense","e2e4 c7c5 g1f3":"Sicilian Defense",
+  "e2e4 c7c5 g1f3 d7d6":"Sicilian Defense",
+  "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6":"Sicilian Najdorf",
+  "e2e4 c7c5 g1f3 b8c6":"Sicilian Classical","e2e4 c7c5 g1f3 e7e6":"Sicilian Scheveningen",
+  "e2e4 c7c5 b1c3":"Sicilian Closed","e2e4 e7e6":"French Defense",
+  "e2e4 e7e6 d2d4 d7d5":"French Defense","e2e4 e7e6 d2d4 d7d5 b1c3":"French Classical",
+  "e2e4 e7e6 d2d4 d7d5 e4e5":"French Advance","e2e4 c7c6":"Caro-Kann Defense",
+  "e2e4 c7c6 d2d4 d7d5":"Caro-Kann Defense","e2e4 c7c6 d2d4 d7d5 b1c3":"Caro-Kann Classical",
+  "e2e4 c7c6 d2d4 d7d5 e4e5":"Caro-Kann Advance","e2e4 d7d5":"Scandinavian Defense",
+  "e2e4 d7d5 e4d5":"Scandinavian Defense","e2e4 g7g6":"Modern Defense",
+  "e2e4 d7d6":"Pirc Defense","e2e4 d7d6 d2d4 g8f6":"Pirc Defense",
+  "e2e4 g8f6":"Alekhine's Defense","e2e4 b7b6":"Owen's Defense",
+  "d2d4":"Queen's Pawn Opening","d2d4 d7d5":"Queen's Pawn Game","d2d4 d7d5 c2c4":"Queen's Gambit",
+  "d2d4 d7d5 c2c4 e7e6":"Queen's Gambit Declined","d2d4 d7d5 c2c4 d5c4":"Queen's Gambit Accepted",
+  "d2d4 d7d5 c2c4 c7c6":"Slav Defense","d2d4 d7d5 c2c4 c7c6 g1f3 g8f6":"Slav Defense",
+  "d2d4 g8f6":"Indian Defense","d2d4 g8f6 c2c4":"Indian Defense",
+  "d2d4 g8f6 c2c4 g7g6":"King's Indian Defense","d2d4 g8f6 c2c4 g7g6 b1c3":"King's Indian Defense",
+  "d2d4 g8f6 c2c4 e7e6 b1c3 f8b4":"Nimzo-Indian Defense",
+  "d2d4 g8f6 c2c4 e7e6 g1f3 b7b6":"Queen's Indian Defense",
+  "d2d4 g8f6 c2c4 c7c5":"Benoni Defense","d2d4 g8f6 c2c4 c7c5 d4d5":"Benoni Defense",
+  "d2d4 f7f5":"Dutch Defense","d2d4 f7f5 c2c4":"Dutch Defense",
+  "c2c4":"English Opening","c2c4 e7e5":"English Opening","c2c4 g8f6":"English Opening",
+  "g1f3":"Reti Opening","g1f3 d7d5":"Reti Opening","g1f3 d7d5 c2c4":"Reti Opening",
+  "g2g3":"King's Fianchetto","b2b3":"Larsen's Opening","b2b4":"Polish Opening","f2f4":"Bird's Opening",
+};
+
+const PUZZLE_DIFFICULTIES   = ["easiest","easier","normal","harder","hardest"];
+const PUZZLE_FAST_THRESHOLD = 20;   // seconds
+const PUZZLE_SLOW_THRESHOLD = 60;   // seconds
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+
+let state = "MENU", mode = "PRESET", userColor = 'w';
+let currentLevel = 1, customElo = 1500, timerSetting = 600;
+let currentThemeIdx = 0, useSeasonal = true;
+const currentMonth = new Date().getMonth() + 1;  // 1-based like Python
+
+let chess = new Chess();
+let selectedSq = null, legalDots = [], capturedByWhite = [], capturedByBlack = [];
+let moveHistory = [], boardHistory = [];
+let whiteTime = 600, blackTime = 600;
+let hintsUsed = 0, hintMove = null, pendingPromotion = null;
+let evalScore = 0.0, prevEval = 0.0;
+let botThinking = false, localMultiplayer = false;
+let currentOpening = "", takebacksUsed = 0;
+let timerInterval = null, lastTick = null;
+
+// Puzzle state — mirrors Python exactly
+let puzzleChess = null, puzzleSolution = [], puzzleMoveIdx = 0, puzzleStatus = "";
+let puzzleSelectedSq = null, puzzleLegalDots = [];
+let puzzleLoading = false, puzzleLoadError = "";
+let puzzleRating = "", puzzleThemesStr = "", puzzleDifficulty = "normal";
+let puzzlePlayerColor = 'w', puzzleAdaptiveIdx = 2;  // starts at "normal"
+let puzzleStartTime = null, puzzleLastFeedback = "";
+let puzzleTimerInterval = null;
+
+// ═══════════════════════════════════════════════════════════════════
+//  STOCKFISH
+// ═══════════════════════════════════════════════════════════════════
+
+let sf = null, sfReady = false, pendingBotCb = null, pendingHintCb = null;
+
+function initStockfish() {
+  try {
+    sf = new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+    sf.onmessage = e => {
+      const l = e.data;
+      if (l === 'uciok') { sf.postMessage('isready'); return; }
+      if (l === 'readyok') { sfReady = true; return; }
+      if (l.startsWith('info') && l.includes('score')) parseEvalLine(l);
+      if (l.startsWith('bestmove')) {
+        const mv = l.split(' ')[1];
+        if (mv && mv !== '(none)') {
+          if (pendingHintCb) { const c = pendingHintCb; pendingHintCb = null; c(mv); }
+          else if (pendingBotCb) { const c = pendingBotCb; pendingBotCb = null; c(mv); }
+        }
+      }
+    };
+    sf.postMessage('uci');
+  } catch(e) { console.warn('Stockfish unavailable'); }
+}
+
+function parseEvalLine(l) {
+  const cp = l.match(/score cp (-?\d+)/);
+  const mt = l.match(/score mate (-?\d+)/);
+  if (cp) evalScore = parseInt(cp[1]) / 100;
+  else if (mt) evalScore = parseInt(mt[1]) > 0 ? 10 : -10;
+  updateEvalBar();
+}
+
+// get_bot_move() — respects LEVEL_CONFIG and ELO mode
+function getBotMove(cb) {
+  if (!sf || !sfReady) { cb(randomUCI()); return; }
+  const [depth, rChance, thinkMs] = LEVEL_CONFIG[currentLevel];
+  if (Math.random() < rChance) { cb(randomUCI()); return; }
+  if (mode === "ELO") {
+    sf.postMessage('setoption name UCI_LimitStrength value true');
+    sf.postMessage(`setoption name UCI_Elo value ${Math.max(1320, Math.min(3190, customElo))}`);
+  } else {
+    sf.postMessage('setoption name UCI_LimitStrength value false');
+  }
+  sf.postMessage(`position fen ${chess.fen()}`);
+  sf.postMessage(`go depth ${depth} movetime ${thinkMs}`);
+  pendingBotCb = cb;
+}
+
+function randomUCI() {
+  const mvs = chess.moves({ verbose: true });
+  if (!mvs.length) return null;
+  const m = mvs[Math.floor(Math.random() * mvs.length)];
+  return m.from + m.to + (m.promotion || '');
+}
+
+// engine.analyse equivalent — used by requestEval and useHint
+function requestEval() {
+  if (!sf || !sfReady) return;
+  sf.postMessage(`position fen ${chess.fen()}`);
+  sf.postMessage('go depth 10 movetime 100');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SOUNDS — _generate_beep equivalent
+// ═══════════════════════════════════════════════════════════════════
+
+let audioCtx = null;
+function playBeep(freq, dur) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.start(audioCtx.currentTime); o.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+// play_move_sound(is_capture) — 880Hz capture, 440Hz normal
+function playMoveSound(isCap) { isCap ? playBeep(880, 0.15) : playBeep(440, 0.1); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  THEME HELPERS — mirrors Python methods exactly
+// ═══════════════════════════════════════════════════════════════════
+
+function getActiveTheme() {
+  if (useSeasonal && SEASONAL_THEMES[currentMonth])
+    return [SEASONAL_THEMES[currentMonth][0], SEASONAL_THEMES[currentMonth][1]];
+  return THEMES[currentThemeIdx];
+}
+function getSeasonalName() {
+  if (useSeasonal && SEASONAL_THEMES[currentMonth]) return SEASONAL_THEMES[currentMonth][2];
+  return "";
+}
+function getThemeDisplayName() {
+  const n = getSeasonalName();
+  return n || `Theme ${currentThemeIdx + 1}`;
+}
+function getTakebackLimit() {
+  if (mode === "ELO") return 0;
+  return TAKEBACK_LIMITS[currentLevel] || 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MENU
+// ═══════════════════════════════════════════════════════════════════
+
+function buildMenu() {
+  const g = document.getElementById('level-grid');
+  g.innerHTML = '';
+  for (let i = 1; i <= 8; i++) {
+    const b = document.createElement('button');
+    b.className = 'btn' + (i === currentLevel && mode === 'PRESET' ? ' active' : '');
+    b.textContent = `Level ${i}`;
+    b.onclick = () => { currentLevel = i; mode = 'PRESET'; buildMenu(); };
+    g.appendChild(b);
+  }
+  document.getElementById('elo-value').textContent = customElo;
+  document.getElementById('elo-value').style.color = mode === 'ELO' ? '#f1c40f' : '#ffffff';
+  document.getElementById('timer-value').textContent = fmtTime(timerSetting);
+  document.getElementById('btn-white').className = 'btn' + (userColor === 'w' ? ' active' : '');
+  document.getElementById('btn-black').className = 'btn' + (userColor === 'b' ? ' active' : '');
+  document.getElementById('theme-name-display').textContent = getThemeDisplayName();
+}
+
+function adjustElo(d) { customElo = Math.max(100, Math.min(3190, customElo + d)); mode = 'ELO'; buildMenu(); }
+function setUserColor(c) { userColor = c; buildMenu(); }
+function adjustTimer(d) { timerSetting = Math.max(10, timerSetting + d); buildMenu(); }
+
+// Keyboard handlers — T: cycle themes, S: toggle seasonal, ESC in puzzle
+document.addEventListener('keydown', e => {
+  if (state === 'MENU') {
+    if (e.key === 't' || e.key === 'T') { useSeasonal = false; currentThemeIdx = (currentThemeIdx + 1) % THEMES.length; buildMenu(); }
+    if (e.key === 's' || e.key === 'S') { useSeasonal = !useSeasonal; buildMenu(); }
+    // ESC in menu quits (Python sys.exit — here we do nothing visible)
+  }
+  // During PLAYING all escape keys are blocked (fullscreen anti-cheat lockdown in Python)
+  if (state === 'PUZZLE' && e.key === 'Escape') goMenu();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  RESET GAME — reset_game()
+// ═══════════════════════════════════════════════════════════════════
+
+function resetGame() {
+  chess = new Chess();
+  selectedSq = null; legalDots = [];
+  capturedByWhite = []; capturedByBlack = [];
+  moveHistory = []; boardHistory = [];
+  whiteTime = timerSetting; blackTime = timerSetting;
+  hintsUsed = 0; hintMove = null; pendingPromotion = null;
+  evalScore = 0; prevEval = 0; botThinking = false;
+  takebacksUsed = 0; currentOpening = "";
+  pendingBotCb = null; pendingHintCb = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════════════════
+
+function show(id) {
+  ['menu','game','puzzle'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? 'flex' : 'none';
+  });
+}
+
+function startGame(multi) {
+  localMultiplayer = multi;
+  resetGame();
+  state = 'PLAYING';
+  show('game');
+  document.getElementById('gameover-overlay').style.display = 'none';
+  document.getElementById('promo-overlay').style.display = 'none';
+  buildCoords(false);
+  updateSidebar();
+  drawBoard();
+  startTimer();
+  if (!localMultiplayer && chess.turn() !== userColor) {
+    botThinking = true;
+    setTimeout(requestBotMove, 300);
+  }
+}
+
+function enterPuzzle() {
+  state = 'PUZZLE';
+  show('puzzle');
+  buildCoords(true);
+  fetchNewPuzzle();
+}
+
+function goMenu() {
+  clearInterval(timerInterval);
+  clearInterval(puzzleTimerInterval);
+  pendingBotCb = null; pendingHintCb = null; botThinking = false;
+  state = 'MENU';
+  show('menu');
+  document.getElementById('gameover-overlay').style.display = 'none';
+  document.getElementById('promo-overlay').style.display = 'none';
+  buildMenu();
+}
+
+function rematch() {
+  document.getElementById('gameover-overlay').style.display = 'none';
+  startGame(localMultiplayer);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════════════════════════════
+
+function startTimer() {
+  clearInterval(timerInterval);
+  lastTick = Date.now();
+  timerInterval = setInterval(() => {
+    if (state !== 'PLAYING') return;
+    if (document.getElementById('gameover-overlay').style.display !== 'none') return;
+    const now = Date.now(), dt = (now - lastTick) / 1000;
+    lastTick = now;
+    if (chess.turn() === 'w') whiteTime = Math.max(0, whiteTime - dt);
+    else blackTime = Math.max(0, blackTime - dt);
+    updateSidebar();
+    if (whiteTime <= 0) showGameOver("Time — Black wins!");
+    else if (blackTime <= 0) showGameOver("Time — White wins!");
+  }, 100);
+}
+
+function fmtTime(s) {
+  s = Math.max(0, s);
+  const m = Math.floor(s / 60), sc = Math.floor(s % 60);
+  return `${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SIDEBAR — mirrors Python sidebar rendering exactly
+//  Key differences vs original HTML:
+//  - Move history: shows last 14 moves (not 7 pairs) in 2 columns
+//  - Local multiplayer: shows "WHITE'S TURN / BLACK'S TURN" instead of takeback
+//  - Takeback button: accent=yellow when can_takeback, loss=red when cannot
+//  - Hint button: accent=yellow when available, loss=red when used up
+// ═══════════════════════════════════════════════════════════════════
+
+function updateSidebar() {
+  const bl = mode === 'ELO' ? `BOT (${customElo})` : `BOT (Lvl ${currentLevel})`;
+  let tl, bl2, tt, bt, tc, bc;
+  if (localMultiplayer) {
+    tl = 'PLAYER 2 (Black)'; bl2 = 'PLAYER 1 (White)';
+    tt = blackTime; bt = whiteTime;
+    tc = capturedByBlack; bc = capturedByWhite;
+  } else if (userColor === 'w') {
+    tl = `${bl} (Black)`; bl2 = 'YOU (White)';
+    tt = blackTime; bt = whiteTime;
+    tc = capturedByBlack; bc = capturedByWhite;
+  } else {
+    tl = `${bl} (White)`; bl2 = 'YOU (Black)';
+    tt = whiteTime; bt = blackTime;
+    tc = capturedByWhite; bc = capturedByBlack;
+  }
+
+  document.getElementById('top-label').textContent = tl;
+  document.getElementById('btm-label').textContent = bl2;
+  document.getElementById('top-clock').textContent = fmtTime(tt);
+  document.getElementById('btm-clock').textContent = fmtTime(bt);
+  // Captured pieces — white pieces are white (#ffffff), black pieces are black (#000000)
+  document.getElementById('top-captures').innerHTML = tc.map(p =>
+    `<span style="color:${p === p.toUpperCase() ? '#ffffff' : '#111111'}">${SYMBOLS[p] || p}</span>`
+  ).join('');
+  document.getElementById('btm-captures').innerHTML = bc.map(p =>
+    `<span style="color:${p === p.toUpperCase() ? '#ffffff' : '#111111'}">${SYMBOLS[p] || p}</span>`
+  ).join('');
+
+  // Hint button — accent (yellow) when hints left, loss (red) when exhausted (Python line 971-973)
+  const hintBtn = document.getElementById('hint-btn');
+  hintBtn.textContent = `HINT (${3 - hintsUsed} left)`;
+  hintBtn.className = hintsUsed < 3 ? 'btn accent' : 'btn loss';
+  hintBtn.disabled = hintsUsed >= 3;
+
+  // Takeback button — Python: local multiplayer shows turn indicator instead
+  const tbBtn = document.getElementById('takeback-btn');
+  if (localMultiplayer) {
+    // In local multiplayer, Python replaces takeback area with turn label (line 997-1001)
+    const turnLabel = chess.turn() === 'w' ? "WHITE'S TURN" : "BLACK'S TURN";
+    tbBtn.textContent = turnLabel;
+    tbBtn.className = 'btn'; // neutral
+    tbBtn.disabled = false;
+    tbBtn.onclick = null; // no action
+  } else {
+    tbBtn.onclick = doTakeback;
+    const tbLimit = getTakebackLimit();
+    const tbLeft = tbLimit - takebacksUsed;
+    const canTakeback = tbLeft > 0 && boardHistory.length >= 2 && chess.turn() === userColor;
+    tbBtn.textContent = `TAKEBACK (${tbLeft} left)`;
+    // Python: tb_color = COLORS["btn"] if can_takeback else COLORS["loss"]
+    // COLORS["btn"] = #45423e (neutral), COLORS["loss"] = #ff4757
+    tbBtn.className = canTakeback ? 'btn' : 'btn loss';
+    tbBtn.disabled = !canTakeback;
+  }
+
+  // Move history: Python renders from index max(0, len-14) to len, 2 columns of 7
+  // We show the last 14 SAN entries as individual numbered items in 2 columns
+  const mhEl = document.getElementById('move-history-text');
+  mhEl.innerHTML = '';
+  const start = Math.max(0, moveHistory.length - 14);
+  for (let i = start; i < moveHistory.length; i++) {
+    const span = document.createElement('span');
+    span.textContent = `${i + 1}. ${moveHistory[i]}`;
+    span.style.fontSize = '13px';
+    mhEl.appendChild(span);
+  }
+
+  document.getElementById('opening-display').textContent =
+    currentOpening ? `Opening: ${currentOpening}` : '';
+  const sn = getSeasonalName();
+  document.getElementById('season-display').textContent = sn ? `Theme: ${sn}` : '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  EVAL BAR — draw_eval_bar() with sigmoid
+// ═══════════════════════════════════════════════════════════════════
+
+function updateEvalBar() {
+  const d = Math.max(-10, Math.min(10, evalScore));
+  const ratio = 1 / (1 + Math.exp(-0.4 * d));
+  // Python: if user_color == WHITE → white fill grows from bottom; else from top
+  const pct = (userColor === 'w' ? ratio : 1 - ratio) * 100;
+  document.getElementById('eval-white-fill').style.height = pct + '%';
+  // score_str: +X.X from white's perspective if playing white, else negated
+  const lbl = userColor === 'w' ? evalScore : -evalScore;
+  document.getElementById('eval-score-text').textContent = (lbl >= 0 ? '+' : '') + lbl.toFixed(1);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  COORDINATES — draw_board() file/rank labels
+// ═══════════════════════════════════════════════════════════════════
+
+function buildCoords(isPuzzle) {
+  const persp = isPuzzle ? puzzlePlayerColor : userColor;
+  // Python: if white → files a-h left-to-right, ranks 8→1 top-to-bottom
+  const files = persp === 'w' ? 'abcdefgh' : 'hgfedcba';
+  const ranks = persp === 'w'
+    ? ['8','7','6','5','4','3','2','1']
+    : ['1','2','3','4','5','6','7','8'];
+  const fEl = document.getElementById(isPuzzle ? 'file-labels-puzzle' : 'file-labels');
+  fEl.innerHTML = '';
+  for (const f of files) {
+    const d = document.createElement('div'); d.className = 'file-label'; d.textContent = f; fEl.appendChild(d);
+  }
+  const rEl = document.getElementById(isPuzzle ? 'rank-labels-puzzle' : 'rank-labels');
+  rEl.innerHTML = '';
+  for (const r of ranks) {
+    const d = document.createElement('div'); d.className = 'rank-label'; d.textContent = r; rEl.appendChild(d);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOARD DRAWING — draw_board()
+// ═══════════════════════════════════════════════════════════════════
+
+const boardCvs = document.getElementById('board');
+const bCtx = boardCvs.getContext('2d');
+const puzCvs = document.getElementById('board-puzzle');
+const pCtx = puzCvs.getContext('2d');
+
+// Convert grid col/row → algebraic square given perspective
+function colRowToSq(col, row, persp) {
+  const file = persp === 'w' ? col : 7 - col;
+  const rank = persp === 'w' ? 7 - row : row;
+  return String.fromCharCode(97 + file) + (rank + 1);
+}
+function sqToColRow(sq, persp) {
+  const file = sq.charCodeAt(0) - 97, rank = parseInt(sq[1]) - 1;
+  return persp === 'w' ? [file, 7 - rank] : [7 - file, rank];
+}
+
+function drawBoardOnCtx(ctx, game, selSq, dots, hint, persp) {
+  const theme = getActiveTheme();
+  ctx.clearRect(0, 0, 600, 600);
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const sq = colRowToSq(col, row, persp);
+      const x = col * SQ, y = row * SQ;
+      const isLight = (row + col) % 2 === 0;
+      let fill = isLight ? theme[0] : theme[1];
+      const piece = game.get(sq);
+      // King in check → COLORS["check"] = "#e74c3c"
+      if (piece && piece.type === 'k' && piece.color === game.turn() && game.in_check())
+        fill = '#e74c3c';
+      // Selected square → COLORS["select"] = "#f7f769"
+      if (selSq === sq) fill = '#f7f769';
+      // Hint squares → COLORS["hint"] = (52,152,219,180) ≈ rgba(52,152,219,0.7)
+      if (hint && (hint.from === sq || hint.to === sq)) fill = 'rgba(52,152,219,0.7)';
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, y, SQ, SQ);
+      // Piece rendering — white pieces: #ffffff, black pieces: #111111 (matches Python "#000000" tinted)
+      if (piece) {
+        const sym = SYMBOLS[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
+        ctx.font = `bold ${Math.floor(SQ * 0.72)}px "Segoe UI Symbol",serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.strokeStyle = piece.color === 'w' ? '#444444' : '#cccccc';
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = piece.color === 'w' ? '#ffffff' : '#111111';
+        ctx.strokeText(sym, x + SQ / 2, y + SQ / 2 + 2);
+        ctx.fillText(sym, x + SQ / 2, y + SQ / 2 + 2);
+      }
+    }
+  }
+  // Legal move dots — COLORS["dot"] = (0,0,0,80) ≈ rgba(0,0,0,0.31)
+  //                   COLORS["capture_dot"] = (231,76,60,160) ≈ rgba(231,76,60,0.63)
+  for (const dotSq of dots) {
+    const [dc, dr] = sqToColRow(dotSq, persp);
+    const cx = dc * SQ + SQ / 2, cy = dr * SQ + SQ / 2;
+    const hasPiece = game.get(dotSq);
+    ctx.beginPath();
+    if (hasPiece) {
+      ctx.arc(cx, cy, SQ / 2 - 3, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(231,76,60,0.63)'; ctx.lineWidth = 4; ctx.stroke();
+    } else {
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.31)'; ctx.fill();
+    }
+  }
+}
+
+function drawBoard() {
+  // Python: perspective = board.turn if local_multiplayer else user_color
+  const persp = localMultiplayer ? chess.turn() : userColor;
+  drawBoardOnCtx(bCtx, chess, selectedSq, legalDots, hintMove, persp);
+}
+function drawPuzzleBoard() {
+  if (!puzzleChess) return;
+  drawBoardOnCtx(pCtx, puzzleChess, puzzleSelectedSq, puzzleLegalDots, null, puzzlePlayerColor);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOARD CLICK — handle_click() PLAYING branch
+// ═══════════════════════════════════════════════════════════════════
+
+boardCvs.addEventListener('click', e => {
+  if (state !== 'PLAYING') return;
+  if (document.getElementById('gameover-overlay').style.display !== 'none') return;
+  if (botThinking) return;
+  const rect = boardCvs.getBoundingClientRect();
+  const col = Math.floor((e.clientX - rect.left) / SQ);
+  const row = Math.floor((e.clientY - rect.top) / SQ);
+  const persp = localMultiplayer ? chess.turn() : userColor;
+  const sq = colRowToSq(col, row, persp);
+  // active_color: board.turn in local MP, else user_color
+  const activeColor = localMultiplayer ? chess.turn() : userColor;
+  if (selectedSq === null) {
+    const p = chess.get(sq);
+    if (p && p.color === activeColor) {
+      selectedSq = sq;
+      legalDots = chess.moves({ square: sq, verbose: true }).map(m => m.to);
+    }
+  } else {
+    const mvs = chess.moves({ square: selectedSq, verbose: true });
+    const match = mvs.find(m => m.to === sq);
+    if (match) {
+      // Promotion detection — matches Python pawn rank 0 or 7 check
+      if (match.flags.includes('p')) {
+        pendingPromotion = { from: selectedSq, to: sq };
+        selectedSq = null; legalDots = [];
+        drawBoard();
+        showPromotion();
+        return;
+      }
+      executeMove(selectedSq, sq, null);
+    }
+    selectedSq = null; legalDots = [];
+  }
+  drawBoard();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  EXECUTE MOVE — execute_move()
+// ═══════════════════════════════════════════════════════════════════
+
+function executeMove(from, to, promo) {
+  prevEval = evalScore;
+  const cap = chess.get(to);
+  // En passant: pawn moves diagonally but destination is empty
+  const movingPiece = chess.get(from);
+  const isEP = movingPiece?.type === 'p' && !cap && from[0] !== to[0];
+  playMoveSound(!!(cap || isEP));
+
+  // Save snapshot BEFORE push — matches Python board_history.append(fen, cap_w, cap_b, hist)
+  boardHistory.push({
+    fen: chess.fen(),
+    capW: [...capturedByWhite],
+    capB: [...capturedByBlack],
+    hist: [...moveHistory],
+  });
+
+  const result = chess.move({ from, to, promotion: promo || 'q' });
+  if (!result) { boardHistory.pop(); return; }
+
+  moveHistory.push(result.san);
+  hintMove = null;
+
+  // Captured piece tracking — matches Python: cap.symbol() is uppercase for white, lowercase for black
+  if (cap) {
+    if (result.color === 'w') capturedByWhite.push(cap.type);       // white captured a black piece
+    else capturedByBlack.push(cap.type.toUpperCase());              // black captured a white piece
+  }
+  // En passant capture — add pawn
+  if (result.flags.includes('e')) {
+    if (result.color === 'w') capturedByWhite.push('p');
+    else capturedByBlack.push('P');
+  }
+
+  // Opening detection — walk move stack against ECO dict (matches Python)
+  const stack = chess.history({ verbose: true }).map(m => m.from + m.to);
+  let found = '';
+  for (let i = stack.length; i >= 1; i--) {
+    const k = stack.slice(0, i).join(' ');
+    if (ECO_OPENINGS[k]) { found = ECO_OPENINGS[k]; break; }
+  }
+  currentOpening = found;
+
+  requestEval();
+  updateSidebar();
+  drawBoard();
+
+  if (chess.game_over()) {
+    let msg = 'DRAW';
+    if (chess.in_checkmate()) msg = result.color === 'w' ? 'White wins!' : 'Black wins!';
+    setTimeout(() => showGameOver(msg), 400);
+    return;
+  }
+  if (!localMultiplayer && chess.turn() !== userColor) {
+    botThinking = true;
+    setTimeout(requestBotMove, 150);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOT MOVE
+// ═══════════════════════════════════════════════════════════════════
+
+function requestBotMove() {
+  if (state !== 'PLAYING') return;
+  getBotMove(uci => {
+    botThinking = false;
+    if (!uci || state !== 'PLAYING') return;
+    executeMove(uci.slice(0,2), uci.slice(2,4), uci[4] || null);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PROMOTION
+// ═══════════════════════════════════════════════════════════════════
+
+function showPromotion() {
+  const row = document.getElementById('promo-row');
+  row.innerHTML = '';
+  // Python: promos = ['Q','R','B','N'] if user_color==WHITE else ['q','r','b','n']
+  const pieces = chess.turn() === 'w' ? ['Q','R','B','N'] : ['q','r','b','n'];
+  for (const p of pieces) {
+    const b = document.createElement('button');
+    b.className = 'promo-btn';
+    b.textContent = SYMBOLS[p];
+    b.onclick = () => {
+      document.getElementById('promo-overlay').style.display = 'none';
+      if (pendingPromotion) {
+        executeMove(pendingPromotion.from, pendingPromotion.to, p.toLowerCase());
+        pendingPromotion = null;
+      }
+    };
+    row.appendChild(b);
+  }
+  document.getElementById('promo-overlay').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  HINT — matches Python: engine.analyse pv[0], highlights from+to
+//  Only fires when it's the user's turn (Python line 754: board.turn == user_color)
+// ═══════════════════════════════════════════════════════════════════
+
+function useHint() {
+  if (hintsUsed >= 3 || !sf || !sfReady) return;
+  if (chess.turn() !== userColor) return;  // Python guard: board.turn == user_color
+  hintsUsed++;
+  sf.postMessage(`position fen ${chess.fen()}`);
+  sf.postMessage('go depth 12 movetime 500');
+  pendingHintCb = uci => {
+    if (uci && uci.length >= 4) {
+      hintMove = { from: uci.slice(0,2), to: uci.slice(2,4) };
+      drawBoard();
+    }
+  };
+  updateSidebar();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TAKEBACK — do_takeback()
+//  Python: pops up to 2 snapshots, restores last remaining snapshot
+// ═══════════════════════════════════════════════════════════════════
+
+function doTakeback() {
+  const limit = getTakebackLimit();
+  if (takebacksUsed >= limit || boardHistory.length === 0) return;
+  botThinking = false; pendingBotCb = null;
+  const steps = Math.min(2, boardHistory.length);
+  for (let i = 0; i < steps; i++) boardHistory.pop();
+  if (boardHistory.length > 0) {
+    const s = boardHistory[boardHistory.length - 1];
+    chess = new Chess(s.fen);
+    capturedByWhite = [...s.capW];
+    capturedByBlack = [...s.capB];
+    moveHistory = [...s.hist];
+  } else {
+    chess = new Chess();
+    capturedByWhite = []; capturedByBlack = []; moveHistory = [];
+  }
+  selectedSq = null; legalDots = []; hintMove = null;
+  takebacksUsed++;
+  requestEval();
+  updateSidebar();
+  drawBoard();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GAME OVER
+// ═══════════════════════════════════════════════════════════════════
+
+function showGameOver(msg) {
+  clearInterval(timerInterval);
+  document.getElementById('gameover-msg').textContent = msg;
+  document.getElementById('gameover-overlay').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DOWNLOAD PGN — download_pgn()
+// ═══════════════════════════════════════════════════════════════════
+
+function downloadPGN() {
+  const w = userColor === 'w' ? 'Player' : 'Stockfish';
+  const b = userColor === 'b' ? 'Player' : 'Stockfish';
+  const pairs = [];
+  for (let i = 0; i < moveHistory.length; i += 2)
+    pairs.push(`${Math.floor(i/2)+1}. ${moveHistory[i]}${moveHistory[i+1] ? ' ' + moveHistory[i+1] : ''}`);
+  const pgn = `[Event "OmniChess Game"]\n[Date "${new Date().toISOString().slice(0,10)}"]\n[White "${w}"]\n[Black "${b}"]\n\n${pairs.join(' ')}`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([pgn], { type: 'text/plain' }));
+  a.download = `game_${Date.now()}.pgn`;
+  a.click();
+  showToast('PGN saved!');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PUZZLE — fetch_puzzle() / draw_puzzle_screen()
+// ═══════════════════════════════════════════════════════════════════
+
+async function fetchNewPuzzle() {
+  puzzleLoading = true; puzzleLoadError = ""; puzzleChess = null;
+  puzzleSolution = []; puzzleMoveIdx = 0; puzzleStatus = "";
+  puzzleSelectedSq = null; puzzleLegalDots = [];
+  puzzleRating = ""; puzzleThemesStr = "";
+  puzzleStartTime = null; puzzleLastFeedback = "";
+  clearInterval(puzzleTimerInterval);
+  puzzleDifficulty = PUZZLE_DIFFICULTIES[puzzleAdaptiveIdx];
+  document.getElementById('puz-turn').textContent = 'Loading puzzle...';
+  document.getElementById('puzzle-status-banner').style.display = 'none';
+  document.getElementById('puzzle-feedback').textContent = '';
+  try {
+    const res = await fetch(`https://lichess.org/api/puzzle/next?difficulty=${puzzleDifficulty}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const pz = data.puzzle;
+    // solution is array of UCI strings
+    puzzleSolution = pz.solution;
+    puzzleRating = String(pz.rating || '?');
+    puzzleThemesStr = (pz.themes || []).slice(0, 3).join(', ');
+    // Replay PGN to get final board position (mirrors Python pgn_game / board.push)
+    const tc = new Chess();
+    const sans = data.game.pgn.trim().split(/\s+/).filter(t => !/^\d+\./.test(t) && t.trim());
+    for (const mv of sans) { try { tc.move(mv); } catch(e) { break; } }
+    // Push first solution move — opponent's forcing move that sets up the puzzle
+    const fm = puzzleSolution[0];
+    tc.move({ from: fm.slice(0,2), to: fm.slice(2,4), promotion: fm[4] || 'q' });
+    puzzleChess = new Chess(tc.fen());
+    puzzleMoveIdx = 1;
+    puzzlePlayerColor = puzzleChess.turn();
+    puzzleLoading = false;
+    puzzleStartTime = Date.now();
+    buildCoords(true);
+    clearInterval(puzzleTimerInterval);
+    puzzleTimerInterval = setInterval(() => {
+      if (puzzleStatus === '' && puzzleStartTime) {
+        const s = Math.floor((Date.now() - puzzleStartTime) / 1000);
+        document.getElementById('puz-timer').textContent = `Time: ${s}s`;
+        document.getElementById('puz-timer').style.color = '#f1c40f';
+      }
+    }, 1000);
+  } catch(e) {
+    puzzleLoadError = `Could not load puzzle: ${e.message}`;
+    puzzleLoading = false;
+    document.getElementById('puz-turn').textContent = puzzleLoadError;
+    return;
+  }
+  updatePuzzleUI();
+  drawPuzzleBoard();
+}
+
+// adapt_puzzle_difficulty(solved, elapsed) — matches Python exactly
+function adaptPuzzleDifficulty(solved, elapsed) {
+  if (!solved) {
+    puzzleAdaptiveIdx = Math.max(0, puzzleAdaptiveIdx - 1);
+    puzzleLastFeedback = `Too hard — dropping to ${PUZZLE_DIFFICULTIES[puzzleAdaptiveIdx].toUpperCase()}`;
+  } else if (elapsed < PUZZLE_FAST_THRESHOLD) {
+    puzzleAdaptiveIdx = Math.min(4, puzzleAdaptiveIdx + 1);
+    puzzleLastFeedback = `Solved in ${Math.floor(elapsed)}s — bumping to ${PUZZLE_DIFFICULTIES[puzzleAdaptiveIdx].toUpperCase()}`;
+  } else if (elapsed > PUZZLE_SLOW_THRESHOLD) {
+    puzzleAdaptiveIdx = Math.max(0, puzzleAdaptiveIdx - 1);
+    puzzleLastFeedback = `Solved in ${Math.floor(elapsed)}s — dropping to ${PUZZLE_DIFFICULTIES[puzzleAdaptiveIdx].toUpperCase()}`;
+  } else {
+    puzzleLastFeedback = `Solved in ${Math.floor(elapsed)}s — staying at ${PUZZLE_DIFFICULTIES[puzzleAdaptiveIdx].toUpperCase()}`;
+  }
+}
+
+function updatePuzzleUI() {
+  if (!puzzleChess) return;
+  // turn_str — matches Python "WHITE to move" / "BLACK to move" (accent color)
+  document.getElementById('puz-turn').textContent =
+    puzzleChess.turn() === 'w' ? 'WHITE to move' : 'BLACK to move';
+  const total = puzzleSolution.length - 1;
+  const done = Math.max(0, puzzleMoveIdx - 1);
+  document.getElementById('puz-progress').textContent = `Progress: ${done}/${total}`;
+  // Difficulty in accent (#f1c40f), rating/themes in #aaaaaa (matches Python)
+  document.getElementById('puz-diff').textContent = `Difficulty: ${puzzleDifficulty.toUpperCase()}`;
+  document.getElementById('puz-rating').textContent = `Rating: ${puzzleRating}   Themes: ${puzzleThemesStr}`;
+  document.getElementById('puzzle-feedback').textContent = puzzleLastFeedback;
+  const banner = document.getElementById('puzzle-status-banner');
+  if (puzzleStatus === 'solved') {
+    banner.style.display = 'block';
+    banner.className = 'banner-solved';
+    banner.textContent = 'PUZZLE SOLVED!';
+    document.getElementById('puz-timer').style.color = '#888888';
+  } else if (puzzleStatus === 'failed') {
+    banner.style.display = 'block';
+    banner.className = 'banner-failed';
+    banner.textContent = 'WRONG — Try Again';
+    document.getElementById('puz-timer').style.color = '#888888';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// Puzzle board click — handle_click() PUZZLE branch
+puzCvs.addEventListener('click', e => {
+  if (state !== 'PUZZLE' || !puzzleChess || puzzleStatus === 'solved') return;
+  if (puzzleChess.turn() !== puzzlePlayerColor) return;
+  const rect = puzCvs.getBoundingClientRect();
+  const col = Math.floor((e.clientX - rect.left) / SQ);
+  const row = Math.floor((e.clientY - rect.top) / SQ);
+  const sq = colRowToSq(col, row, puzzlePlayerColor);
+  if (puzzleSelectedSq === null) {
+    const p = puzzleChess.get(sq);
+    if (p && p.color === puzzlePlayerColor) {
+      puzzleSelectedSq = sq;
+      puzzleLegalDots = puzzleChess.moves({ square: sq, verbose: true }).map(m => m.to);
+    }
+  } else {
+    if (puzzleMoveIdx < puzzleSolution.length) {
+      const exp = puzzleSolution[puzzleMoveIdx];
+      const eFrom = exp.slice(0,2), eTo = exp.slice(2,4);
+      if (puzzleSelectedSq === eFrom && sq === eTo) {
+        // Correct move
+        const isCap = !!puzzleChess.get(eTo);
+        playMoveSound(isCap);
+        puzzleChess.move({ from: eFrom, to: eTo, promotion: exp[4] || 'q' });
+        puzzleMoveIdx++;
+        puzzleStatus = "";
+        // Push opponent response if any
+        if (puzzleMoveIdx < puzzleSolution.length) {
+          const opp = puzzleSolution[puzzleMoveIdx];
+          puzzleChess.move({ from: opp.slice(0,2), to: opp.slice(2,4), promotion: opp[4] || 'q' });
+          puzzleMoveIdx++;
+        }
+        if (puzzleMoveIdx >= puzzleSolution.length) {
+          puzzleStatus = 'solved';
+          const elapsed = puzzleStartTime ? (Date.now() - puzzleStartTime) / 1000 : 999;
+          adaptPuzzleDifficulty(true, elapsed);
+        }
+      } else if (puzzleLegalDots.includes(sq)) {
+        // Wrong move — only penalise if it's a legal move attempt
+        puzzleStatus = 'failed';
+        const elapsed = puzzleStartTime ? (Date.now() - puzzleStartTime) / 1000 : 999;
+        adaptPuzzleDifficulty(false, elapsed);
+      }
+    }
+    puzzleSelectedSq = null; puzzleLegalDots = [];
+  }
+  updatePuzzleUI();
+  drawPuzzleBoard();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════════════════
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════
+
+buildMenu();
+initStockfish();
+</script>
+</body>
+</html>
