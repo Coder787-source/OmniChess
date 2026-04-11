@@ -52,7 +52,6 @@ Play instantly in your browser — no installation required!
 - Opening name display
 - Move sounds
 
-> ℹ️ The evaluation bar has been removed in v1.7 for a cleaner interface.
 
 ### Perfect for:
 
