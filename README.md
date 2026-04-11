@@ -38,27 +38,33 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 
 Play instantly in your browser — no installation required!
 
-**🔗 Play now:** [https://coder787-source.github.io/OmniChess/](https://coder787-source.github.io/OmniChess/)
+🔗 **Play now:** [https://coder787-source.github.io/OmniChess/](https://coder787-source.github.io/OmniChess/)
 
-**What's included:**
-- Full Stockfish engine integration with 8 difficulty levels
+### What's included:
+
+- **Stockfish 18** engine with 8 difficulty levels (upgraded from Stockfish 10)
+- **Chess variants** – Chess960 (Fischer Random), King of the Hill, and Three‑Check
 - Daily puzzles from Lichess
 - Local multiplayer (hotseat mode)
 - Time controls (blitz, rapid, classical)
 - Board themes and seasonal themes
 - Move history and PGN download
 - Opening name display
-- Move sounds and evaluation bar
+- Move sounds
 
-**Perfect for:**
+> ℹ️ The evaluation bar has been removed in v1.7 for a cleaner interface.
+
+### Perfect for:
+
 - **ChromeOS users** — No Linux container needed, runs natively in Chrome
 - **School/work computers** — No admin rights or installation required
 - **Quick games** — Jump in and play in seconds from any browser
 
-**Limitations:**
+### Limitations:
+
 - No anti-cheat fullscreen lockdown (browser security restrictions)
 - Requires an internet connection (no offline mode)
-
+- PGN analysis and resume features are desktop-only
 ---
 
 
