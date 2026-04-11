@@ -19,7 +19,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 - **Opening Name Display** — Identifies your opening in real time (Ruy Lopez, Sicilian Najdorf, and 60+ others)
 - **Post-Game PGN Export** — Download any game to analyse on chess.com or lichess.org
 - **Rematch** — Instantly replay against the same opponent with one click
-- **Eval Bar** — Live evaluation bar shows who's winning throughout the game
+- **Eval Bar** (Desktop Only) — Live evaluation bar shows who's winning throughout the game
 - **Move Sounds** — Distinct audio cues for moves and captures
 - **Hints** — Up to 3 engine-powered hints per game
 - **Takebacks** — Undo moves with limits that scale with difficulty level
