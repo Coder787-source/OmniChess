@@ -35,6 +35,8 @@ body { background:#1e1e1e; color:#ecf0f1; font-family:'Segoe UI',Arial,sans-seri
 .btn.teal:hover { background:#178f86; }
 .btn.loss { background:#ff4757; color:#fff; }
 .btn:disabled { opacity:.45; cursor:default; }
+.btn.variant { background:#9b59b6; color:#fff; }
+.btn.variant:hover { background:#8e44ad; }
 #elo-value { font-size:40px; font-weight:bold; text-align:center; padding:4px 0; font-family:'Courier New',monospace; }
 .elo-btns { display:flex; gap:6px; justify-content:center; }
 .color-row { display:flex; gap:8px; justify-content:center; margin-top:6px; }
@@ -112,7 +114,7 @@ canvas#board-puzzle { display:block; cursor:pointer; }
 <body>
 
 <!-- draw_credits() → "ENGINE INTEGRATION BY STOCKFISH v18" -->
-<div id="credit-bar">ENGINE INTEGRATION BY STOCKFISH v18</div>
+<div id="credit-bar">OmniChess:Entertainment Studios &nbsp;·&nbsp; ENGINE: Stockfish 18 &nbsp;·&nbsp; AUTHOR: the Stockfish developers</div>
 
 <!-- ═══════════ MENU ═══════════ -->
 <div id="menu">
@@ -150,6 +152,11 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <button class="btn" onclick="adjustTimer(60)">+60</button>
     </div>
   </div>
+  <div style="text-align:center">
+    <div class="panel-label">VARIANT: <span id="variant-name-display" style="color:#9b59b6">Standard</span></div>
+    <div style="font-size:12px;color:#888;margin-bottom:4px" id="variant-desc-display">Classic chess</div>
+    <button class="btn" style="background:#9b59b6;color:#fff;padding:8px 18px" onclick="cycleVariant()">CYCLE VARIANT</button>
+  </div>
   <!-- T = Board Theme | S = Seasonal On/Off — matches Python keyboard handler -->
   <div id="theme-hint">T = Board Theme | S = Seasonal On/Off &nbsp;|&nbsp; Active: <span id="theme-name-display">New Year</span></div>
   <div class="menu-actions">
@@ -167,12 +174,14 @@ canvas#board-puzzle { display:block; cursor:pointer; }
   </div>
   <div id="board-area">
     <div id="season-display"></div>
+    <div id="variant-badge" style="font-size:12px;color:#9b59b6;min-height:16px;margin-left:14px"></div>
     <div id="board-and-ranks">
       <div id="rank-labels"></div>
       <canvas id="board" width="600" height="600"></canvas>
     </div>
     <div id="file-labels"></div>
     <div id="opening-display"></div>
+    <div id="threecheck-display" style="font-size:12px;color:#f1c40f;min-height:16px;margin-left:14px;display:none"></div>
   </div>
   <div id="sidebar">
     <div class="player-card">
@@ -184,6 +193,12 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <div class="move-history-title">MOVE HISTORY</div>
       <!-- Python renders up to 14 most-recent moves in 2 columns of 7 -->
       <div id="move-history-text"></div>
+    </div>
+    <div id="pocket-panel" style="display:none;background:#262421;border-radius:10px;padding:8px 14px">
+      <div style="font-size:11px;font-weight:bold;color:#888;letter-spacing:1px;margin-bottom:4px">POCKET (click to drop)</div>
+      <div id="pocket-white" style="font-size:24px;min-height:30px;color:#fff;cursor:pointer"></div>
+      <div style="font-size:10px;color:#555;margin:2px 0">— black's pocket —</div>
+      <div id="pocket-black" style="font-size:24px;min-height:30px;color:#bbb;cursor:pointer"></div>
     </div>
     <div class="sidebar-btn-group">
       <button class="btn" onclick="goMenu()">HOME MENU</button>
@@ -327,6 +342,16 @@ const ECO_OPENINGS = {
 };
 
 const PUZZLE_DIFFICULTIES   = ["easiest","easier","normal","harder","hardest"];
+
+// VARIANTS — mirrors Python VARIANTS dict
+const VARIANTS = {
+  standard:   { name: "Standard",         desc: "Classic chess" },
+  koth:       { name: "King of the Hill",  desc: "First king to centre wins" },
+  threecheck: { name: "Three-check",       desc: "Win by giving 3 checks" },
+  antichess:  { name: "Antichess",         desc: "Lose all your pieces to win" },
+};
+const VARIANT_KEYS = Object.keys(VARIANTS);
+const KOTH_CENTRE = ["d4","d5","e4","e5"];
 const PUZZLE_FAST_THRESHOLD = 20;   // seconds
 const PUZZLE_SLOW_THRESHOLD = 60;   // seconds
 
@@ -358,32 +383,56 @@ let puzzlePlayerColor = 'w', puzzleAdaptiveIdx = 2;  // starts at "normal"
 let puzzleStartTime = null, puzzleLastFeedback = "";
 let puzzleTimerInterval = null;
 
+// Variant state — mirrors Python
+let currentVariant = "standard";
+let checksByWhite = 0, checksByBlack = 0;
+
 // ═══════════════════════════════════════════════════════════════════
 //  STOCKFISH
 // ═══════════════════════════════════════════════════════════════════
 
 let sf = null, sfReady = false, pendingBotCb = null, pendingHintCb = null;
 
-function initStockfish() {
-  try {
-    sf = new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
-    sf.onmessage = e => {
-      const l = e.data;
-      if (l === 'uciok') { sf.postMessage('isready'); return; }
-      if (l === 'readyok') { sfReady = true; return; }
-      if (l.startsWith('info') && l.includes('score')) parseEvalLine(l);
-      if (l.startsWith('bestmove')) {
-        const mv = l.split(' ')[1];
-        if (mv && mv !== '(none)') {
-          if (pendingHintCb) { const c = pendingHintCb; pendingHintCb = null; c(mv); }
-          else if (pendingBotCb) { const c = pendingBotCb; pendingBotCb = null; c(mv); }
-        }
+function attachSfHandlers(worker) {
+  worker.onmessage = e => {
+    const l = typeof e.data === 'string' ? e.data : '';
+    if (!l) return;
+    if (l === 'uciok') { worker.postMessage('isready'); return; }
+    if (l === 'readyok') { sfReady = true; return; }
+    if (l.startsWith('info') && l.includes('score')) parseEvalLine(l);
+    if (l.startsWith('bestmove')) {
+      const mv = l.split(' ')[1];
+      if (mv && mv !== '(none)') {
+        if (pendingHintCb) { const c = pendingHintCb; pendingHintCb = null; c(mv); }
+        else if (pendingBotCb) { const c = pendingBotCb; pendingBotCb = null; c(mv); }
       }
-    };
-    sf.postMessage('uci');
-  } catch(e) { console.warn('Stockfish unavailable'); }
+    }
+  };
+  worker.onerror = () => { sf = null; sfReady = false; };
 }
 
+function initStockfish() {
+  const SF18 = 'https://unpkg.com/stockfish@18.0.7/src/stockfish-18-lite-single.js';
+  // Fetch → blob URL pattern: bypasses cross-origin Worker restriction on real servers
+  fetch(SF18)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(blob => {
+      sf = new Worker(URL.createObjectURL(blob));
+      attachSfHandlers(sf);
+      sf.postMessage('uci');
+    })
+    .catch(() => {
+      // importScripts fallback (works on servers that allow it)
+      try {
+        const blob = new Blob(["importScripts('" + SF18 + "');"], { type: 'application/javascript' });
+        sf = new Worker(URL.createObjectURL(blob));
+        attachSfHandlers(sf);
+        sf.postMessage('uci');
+      } catch(e) {
+        console.warn('Stockfish 18 unavailable — bot uses random moves');
+      }
+    });
+}
 function parseEvalLine(l) {
   const cp = l.match(/score cp (-?\d+)/);
   const mt = l.match(/score mate (-?\d+)/);
@@ -394,6 +443,7 @@ function parseEvalLine(l) {
 
 // get_bot_move() — respects LEVEL_CONFIG and ELO mode
 function getBotMove(cb) {
+  if (currentVariant === 'antichess') { cb(randomUCI()); return; }
   if (!sf || !sfReady) { cb(randomUCI()); return; }
   const [depth, rChance, thinkMs] = LEVEL_CONFIG[currentLevel];
   if (Math.random() < rChance) { cb(randomUCI()); return; }
@@ -467,6 +517,57 @@ function getTakebackLimit() {
 //  MENU
 // ═══════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════
+//  VARIANTS
+// ═══════════════════════════════════════════════════════════════════
+
+function cycleVariant() {
+  const idx = VARIANT_KEYS.indexOf(currentVariant);
+  currentVariant = VARIANT_KEYS[(idx + 1) % VARIANT_KEYS.length];
+  buildMenu();
+}
+
+function checkVariantWin() {
+  if (chess.game_over()) {
+    if (chess.in_checkmate()) {
+      if (currentVariant === 'antichess') {
+        // In antichess the side with no moves WINS
+        return chess.turn() === 'w' ? 'White wins! (Antichess)' : 'Black wins! (Antichess)';
+      }
+      return chess.turn() === 'b' ? 'White wins!' : 'Black wins!';
+    }
+    return 'DRAW';
+  }
+  if (currentVariant === 'koth') {
+    const wk = chess.board().flat().find(p => p && p.type === 'k' && p.color === 'w');
+    const bk = chess.board().flat().find(p => p && p.type === 'k' && p.color === 'b');
+    if (wk && KOTH_CENTRE.includes(wk.square)) return 'White wins! (King of the Hill)';
+    if (bk && KOTH_CENTRE.includes(bk.square)) return 'Black wins! (King of the Hill)';
+  }
+  if (currentVariant === 'threecheck') {
+    if (checksByWhite >= 3) return 'White wins! (Three-check)';
+    if (checksByBlack >= 3) return 'Black wins! (Three-check)';
+  }
+  return null;
+}
+
+function updateVariantUI() {
+  const v = VARIANTS[currentVariant];
+  // badge in game view
+  const badge = document.getElementById('variant-badge');
+  badge.textContent = currentVariant !== 'standard' ? `Variant: ${v.name}` : '';
+  // 3-check counter
+  const tcd = document.getElementById('threecheck-display');
+  if (currentVariant === 'threecheck') {
+    tcd.style.display = 'block';
+    tcd.textContent = `Checks — White: ${checksByWhite}/3   Black: ${checksByBlack}/3`;
+  } else {
+    tcd.style.display = 'none';
+  }
+  // pocket panel (future: crazyhouse — shown as placeholder only since chess.js 0.10 has no crazyhouse)
+  document.getElementById('pocket-panel').style.display = 'none';
+}
+
 function buildMenu() {
   const g = document.getElementById('level-grid');
   g.innerHTML = '';
@@ -483,6 +584,9 @@ function buildMenu() {
   document.getElementById('btn-white').className = 'btn' + (userColor === 'w' ? ' active' : '');
   document.getElementById('btn-black').className = 'btn' + (userColor === 'b' ? ' active' : '');
   document.getElementById('theme-name-display').textContent = getThemeDisplayName();
+  const vv = VARIANTS[currentVariant];
+  document.getElementById('variant-name-display').textContent = vv.name;
+  document.getElementById('variant-desc-display').textContent = vv.desc;
 }
 
 function adjustElo(d) { customElo = Math.max(100, Math.min(3190, customElo + d)); mode = 'ELO'; buildMenu(); }
@@ -514,6 +618,7 @@ function resetGame() {
   evalScore = 0; prevEval = 0; botThinking = false;
   takebacksUsed = 0; currentOpening = "";
   pendingBotCb = null; pendingHintCb = null;
+  checksByWhite = 0; checksByBlack = 0;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -535,6 +640,7 @@ function startGame(multi) {
   document.getElementById('promo-overlay').style.display = 'none';
   buildCoords(false);
   updateSidebar();
+  updateVariantUI();
   drawBoard();
   startTimer();
   if (!localMultiplayer && chess.turn() !== userColor) {
@@ -750,6 +856,10 @@ function drawBoardOnCtx(ctx, game, selSq, dots, hint, persp) {
       if (selSq === sq) fill = '#f7f769';
       // Hint squares → COLORS["hint"] = (52,152,219,180) ≈ rgba(52,152,219,0.7)
       if (hint && (hint.from === sq || hint.to === sq)) fill = 'rgba(52,152,219,0.7)';
+      // KotH: highlight centre squares
+      if (currentVariant === 'koth' && KOTH_CENTRE.includes(sq)) {
+        fill = isLight ? '#d4b896' : '#a07850'; // warm tint for centre
+      }
       ctx.fillStyle = fill;
       ctx.fillRect(x, y, SQ, SQ);
       // Piece rendering — white pieces: #ffffff, black pieces: #111111 (matches Python "#000000" tinted)
@@ -882,10 +992,16 @@ function executeMove(from, to, promo) {
   updateSidebar();
   drawBoard();
 
-  if (chess.game_over()) {
-    let msg = 'DRAW';
-    if (chess.in_checkmate()) msg = result.color === 'w' ? 'White wins!' : 'Black wins!';
-    setTimeout(() => showGameOver(msg), 400);
+  // Three-check: count checks delivered
+  if (currentVariant === 'threecheck' && chess.in_check()) {
+    if (chess.turn() === 'b') checksByWhite++;  // white just moved, black in check
+    else checksByBlack++;
+  }
+  updateVariantUI();
+
+  const variantResult = checkVariantWin();
+  if (variantResult) {
+    setTimeout(() => showGameOver(variantResult), 400);
     return;
   }
   if (!localMultiplayer && chess.turn() !== userColor) {
