@@ -300,5 +300,11 @@ If you choose to run the desktop version on unsupported platforms:
 
 ---
 
+## 🙏 Special Thanks
+
+**EzioMagnifico** — for consistently posting every OmniChess release on the Outskirts forum and being a dedicated advocate for the project.
+
+---
+
 ## 📰 Featured In
-- [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053) 
+- [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
