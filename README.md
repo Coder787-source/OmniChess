@@ -249,8 +249,9 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 | pygame | `pip install pygame` |
 | python-chess | `pip install python-chess` |
 | Symbola font | Linux only — `sudo apt install fonts-symbola` |
-| Stockfish | v18 recommended — [download from stockfishchess.org](https://stockfishchess.org/download/) |
-| PGN analysis | Requires Stockfish engine (auto‑analyses moves when importing .pgn) |
+| Stockfish | Download from [stockfishchess.org](https://stockfishchess.org/download/) |
+
+> **v1.7 addition:** PGN analysis & resume feature uses Stockfish to analyse move quality automatically when you import a .pgn file.
 
 ### Web Version
 
@@ -259,7 +260,6 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 | Browser | Any modern browser (Chrome, Firefox, Safari, Edge) |
 | Internet | Required for gameplay |
 | JavaScript | Must be enabled |
-| Stockfish | v18 built‑in (no separate download) |
 
 ---
 
