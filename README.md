@@ -268,11 +268,15 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 - **Linux** — x86-64 & ARM/Raspberry Pi
 - **macOS** — Apple Silicon & Intel
 
+> ✅ All chess variants (Chess960, King of the Hill, Three‑Check) and PGN analysis/resume features are fully supported on desktop.
+
 ### Web (Works Anywhere)
 - **ChromeOS** — No Linux container needed, runs directly in Chrome
 - **Windows/Mac/Linux** — No installation required
 - **School/work computers** — Works without admin rights
 - **Mobile devices** — Play on tablets and phones with a browser
+
+> ✅ Web version includes Chess960, King of the Hill, and Three‑Check variants. PGN analysis/resume is desktop‑only.
 
 ---
 
@@ -284,7 +288,7 @@ OmniChess Desktop is **not officially supported** on the following platforms:
 - **FreeBSD** — Stockfish compilation and pygame compatibility issues likely
 - **Older macOS versions** — Pre-Catalina systems may have compatibility problems
 
-&gt; 💡 **ChromeOS users**: Instead of using the Linux container (which has Wayland, audio, and input limitations), we strongly recommend using the **[Web Version](https://coder787-source.github.io/OmniChess/)** for the best experience.
+> 💡 **ChromeOS users**: Instead of using the Linux container (which has Wayland, audio, and input limitations), we strongly recommend using the **[Web Version](https://coder787-source.github.io/OmniChess/)** for the best experience. The web version now includes all chess variants and runs Stockfish 18.
 
 If you choose to run the desktop version on unsupported platforms:
 - ⚠️ **No technical support** will be provided for installation or runtime issues
