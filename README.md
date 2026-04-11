@@ -268,15 +268,11 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 - **Linux** — x86-64 & ARM/Raspberry Pi
 - **macOS** — Apple Silicon & Intel
 
-> ✅ All chess variants (Chess960, King of the Hill, Three‑Check) and PGN analysis/resume features are fully supported on desktop.
-
 ### Web (Works Anywhere)
 - **ChromeOS** — No Linux container needed, runs directly in Chrome
 - **Windows/Mac/Linux** — No installation required
 - **School/work computers** — Works without admin rights
 - **Mobile devices** — Play on tablets and phones with a browser
-
-> ✅ Web version includes Chess960, King of the Hill, and Three‑Check variants. PGN analysis/resume is desktop‑only.
 
 ---
 
