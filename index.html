@@ -49,10 +49,6 @@ body { background:#1e1e1e; color:#ecf0f1; font-family:'Segoe UI',Arial,sans-seri
 
 /* ── GAME ── */
 #game { display:none; width:100vw; height:100vh; align-items:center; justify-content:center; flex-direction:row; background:#1e1e1e; }
-#eval-wrap { display:flex; flex-direction:column; align-items:center; margin-right:18px; }
-#eval-score-text { font-size:12px; color:#f1c40f; font-family:'Courier New',monospace; margin-bottom:4px; min-height:16px; }
-#eval-bar { width:35px; height:600px; background:#404040; border-radius:4px; position:relative; overflow:hidden; }
-#eval-white-fill { position:absolute; bottom:0; left:0; width:100%; background:#ffffff; transition:height .35s ease; }
 #board-area { display:flex; flex-direction:column; }
 #board-and-ranks { display:flex; flex-direction:row; }
 #rank-labels { display:flex; flex-direction:column; width:14px; height:600px; }
@@ -168,10 +164,6 @@ canvas#board-puzzle { display:block; cursor:pointer; }
 
 <!-- ═══════════ GAME ═══════════ -->
 <div id="game">
-  <div id="eval-wrap">
-    <div id="eval-score-text">+0.0</div>
-    <div id="eval-bar"><div id="eval-white-fill" style="height:50%"></div></div>
-  </div>
   <div id="board-area">
     <div id="season-display"></div>
     <div id="variant-badge" style="font-size:12px;color:#9b59b6;min-height:16px;margin-left:14px"></div>
@@ -369,7 +361,6 @@ let selectedSq = null, legalDots = [], capturedByWhite = [], capturedByBlack = [
 let moveHistory = [], boardHistory = [];
 let whiteTime = 600, blackTime = 600;
 let hintsUsed = 0, hintMove = null, pendingPromotion = null;
-let evalScore = 0.0, prevEval = 0.0;
 let botThinking = false, localMultiplayer = false;
 let currentOpening = "", takebacksUsed = 0;
 let timerInterval = null, lastTick = null;
@@ -399,7 +390,6 @@ function attachSfHandlers(worker) {
     if (!l) return;
     if (l === 'uciok') { worker.postMessage('isready'); return; }
     if (l === 'readyok') { sfReady = true; return; }
-    if (l.startsWith('info') && l.includes('score')) parseEvalLine(l);
     if (l.startsWith('bestmove')) {
       const mv = l.split(' ')[1];
       if (mv && mv !== '(none)') {
@@ -433,13 +423,6 @@ function initStockfish() {
       }
     });
 }
-function parseEvalLine(l) {
-  const cp = l.match(/score cp (-?\d+)/);
-  const mt = l.match(/score mate (-?\d+)/);
-  if (cp) evalScore = parseInt(cp[1]) / 100;
-  else if (mt) evalScore = parseInt(mt[1]) > 0 ? 10 : -10;
-  updateEvalBar();
-}
 
 // get_bot_move() — respects LEVEL_CONFIG and ELO mode
 function getBotMove(cb) {
@@ -465,12 +448,6 @@ function randomUCI() {
   return m.from + m.to + (m.promotion || '');
 }
 
-// engine.analyse equivalent — used by requestEval and useHint
-function requestEval() {
-  if (!sf || !sfReady) return;
-  sf.postMessage(`position fen ${chess.fen()}`);
-  sf.postMessage('go depth 10 movetime 100');
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  SOUNDS — _generate_beep equivalent
@@ -615,7 +592,7 @@ function resetGame() {
   moveHistory = []; boardHistory = [];
   whiteTime = timerSetting; blackTime = timerSetting;
   hintsUsed = 0; hintMove = null; pendingPromotion = null;
-  evalScore = 0; prevEval = 0; botThinking = false;
+  botThinking = false;
   takebacksUsed = 0; currentOpening = "";
   pendingBotCb = null; pendingHintCb = null;
   checksByWhite = 0; checksByBlack = 0;
@@ -781,20 +758,6 @@ function updateSidebar() {
   document.getElementById('season-display').textContent = sn ? `Theme: ${sn}` : '';
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  EVAL BAR — draw_eval_bar() with sigmoid
-// ═══════════════════════════════════════════════════════════════════
-
-function updateEvalBar() {
-  const d = Math.max(-10, Math.min(10, evalScore));
-  const ratio = 1 / (1 + Math.exp(-0.4 * d));
-  // Python: if user_color == WHITE → white fill grows from bottom; else from top
-  const pct = (userColor === 'w' ? ratio : 1 - ratio) * 100;
-  document.getElementById('eval-white-fill').style.height = pct + '%';
-  // score_str: +X.X from white's perspective if playing white, else negated
-  const lbl = userColor === 'w' ? evalScore : -evalScore;
-  document.getElementById('eval-score-text').textContent = (lbl >= 0 ? '+' : '') + lbl.toFixed(1);
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  COORDINATES — draw_board() file/rank labels
@@ -947,7 +910,6 @@ boardCvs.addEventListener('click', e => {
 // ═══════════════════════════════════════════════════════════════════
 
 function executeMove(from, to, promo) {
-  prevEval = evalScore;
   const cap = chess.get(to);
   // En passant: pawn moves diagonally but destination is empty
   const movingPiece = chess.get(from);
@@ -988,7 +950,6 @@ function executeMove(from, to, promo) {
   }
   currentOpening = found;
 
-  requestEval();
   updateSidebar();
   drawBoard();
 
@@ -1091,7 +1052,6 @@ function doTakeback() {
   }
   selectedSq = null; legalDots = []; hintMove = null;
   takebacksUsed++;
-  requestEval();
   updateSidebar();
   drawBoard();
 }
