@@ -251,8 +251,6 @@ wget -qO- https://raw.githubusercontent.com/Coder787-source/OmniChess/main/unins
 | Symbola font | Linux only — `sudo apt install fonts-symbola` |
 | Stockfish | Download from [stockfishchess.org](https://stockfishchess.org/download/) |
 
-> **v1.7 addition:** PGN analysis & resume feature uses Stockfish to analyse move quality automatically when you import a .pgn file.
-
 ### Web Version
 
 | Requirement | Details |
