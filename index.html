@@ -186,12 +186,6 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <!-- Python renders up to 14 most-recent moves in 2 columns of 7 -->
       <div id="move-history-text"></div>
     </div>
-    <div id="pocket-panel" style="display:none;background:#262421;border-radius:10px;padding:8px 14px">
-      <div style="font-size:11px;font-weight:bold;color:#888;letter-spacing:1px;margin-bottom:4px">POCKET (click to drop)</div>
-      <div id="pocket-white" style="font-size:24px;min-height:30px;color:#fff;cursor:pointer"></div>
-      <div style="font-size:10px;color:#555;margin:2px 0">— black's pocket —</div>
-      <div id="pocket-black" style="font-size:24px;min-height:30px;color:#bbb;cursor:pointer"></div>
-    </div>
     <div class="sidebar-btn-group">
       <button class="btn" onclick="goMenu()">HOME MENU</button>
       <!-- Hint button: yellow when available, red (#ff4757) when exhausted — matches Python -->
@@ -340,6 +334,7 @@ const VARIANTS = {
   standard:   { name: "Standard",         desc: "Classic chess" },
   koth:       { name: "King of the Hill",  desc: "First king to centre wins" },
   threecheck: { name: "Three-check",       desc: "Win by giving 3 checks" },
+  atomic:     { name: "Atomic",            desc: "Captures explode nearby pieces" },
   antichess:  { name: "Antichess",         desc: "Lose all your pieces to win" },
 };
 const VARIANT_KEYS = Object.keys(VARIANTS);
@@ -426,7 +421,7 @@ function initStockfish() {
 
 // get_bot_move() — respects LEVEL_CONFIG and ELO mode
 function getBotMove(cb) {
-  if (currentVariant === 'antichess') { cb(randomUCI()); return; }
+  if (currentVariant === 'antichess' || currentVariant === 'atomic') { cb(randomUCI()); return; }
   if (!sf || !sfReady) { cb(randomUCI()); return; }
   const [depth, rChance, thinkMs] = LEVEL_CONFIG[currentLevel];
   if (Math.random() < rChance) { cb(randomUCI()); return; }
@@ -505,12 +500,26 @@ function cycleVariant() {
 }
 
 function checkVariantWin() {
+  if (currentVariant === 'antichess') {
+    if (chess.game_over()) {
+      // In antichess, the side with no moves WINS (stalemate or checkmate)
+      return chess.turn() === 'w' ? 'White wins! (Antichess)' : 'Black wins! (Antichess)';
+    }
+    return null;
+  }
+  if (currentVariant === 'atomic') {
+    // Atomic: chess.js doesn't natively support explosion rules, but we can detect
+    // king capture / no king as game over. Treat checkmate/stalemate as normal win.
+    if (chess.game_over()) {
+      if (chess.in_checkmate()) {
+        return chess.turn() === 'b' ? 'White wins! (Atomic)' : 'Black wins! (Atomic)';
+      }
+      return 'DRAW (Atomic)';
+    }
+    return null;
+  }
   if (chess.game_over()) {
     if (chess.in_checkmate()) {
-      if (currentVariant === 'antichess') {
-        // In antichess the side with no moves WINS
-        return chess.turn() === 'w' ? 'White wins! (Antichess)' : 'Black wins! (Antichess)';
-      }
       return chess.turn() === 'b' ? 'White wins!' : 'Black wins!';
     }
     return 'DRAW';
@@ -541,8 +550,6 @@ function updateVariantUI() {
   } else {
     tcd.style.display = 'none';
   }
-  // pocket panel (future: crazyhouse — shown as placeholder only since chess.js 0.10 has no crazyhouse)
-  document.getElementById('pocket-panel').style.display = 'none';
 }
 
 function buildMenu() {
@@ -878,29 +885,33 @@ boardCvs.addEventListener('click', e => {
   const row = Math.floor((e.clientY - rect.top) / SQ);
   const persp = localMultiplayer ? chess.turn() : userColor;
   const sq = colRowToSq(col, row, persp);
-  // active_color: board.turn in local MP, else user_color
   const activeColor = localMultiplayer ? chess.turn() : userColor;
+  const clickedOwn = chess.get(sq)?.color === activeColor;
   if (selectedSq === null) {
-    const p = chess.get(sq);
-    if (p && p.color === activeColor) {
+    if (clickedOwn) {
       selectedSq = sq;
-      legalDots = chess.moves({ square: sq, verbose: true }).map(m => m.to);
+      legalDots = [...new Set(chess.moves({ square: sq, verbose: true }).map(m => m.to))];
     }
   } else {
-    const mvs = chess.moves({ square: selectedSq, verbose: true });
-    const match = mvs.find(m => m.to === sq);
-    if (match) {
-      // Promotion detection — matches Python pawn rank 0 or 7 check
-      if (match.flags.includes('p')) {
-        pendingPromotion = { from: selectedSq, to: sq };
-        selectedSq = null; legalDots = [];
-        drawBoard();
-        showPromotion();
-        return;
+    // Re-select a different own piece without requiring a double-click
+    if (clickedOwn && sq !== selectedSq) {
+      selectedSq = sq;
+      legalDots = [...new Set(chess.moves({ square: sq, verbose: true }).map(m => m.to))];
+    } else {
+      const mvs = chess.moves({ square: selectedSq, verbose: true });
+      const match = mvs.find(m => m.to === sq);
+      if (match) {
+        if (match.flags.includes('p')) {
+          pendingPromotion = { from: selectedSq, to: sq };
+          selectedSq = null; legalDots = [];
+          drawBoard();
+          showPromotion();
+          return;
+        }
+        executeMove(selectedSq, sq, null);
       }
-      executeMove(selectedSq, sq, null);
+      selectedSq = null; legalDots = [];
     }
-    selectedSq = null; legalDots = [];
   }
   drawBoard();
 });
