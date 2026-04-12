@@ -29,7 +29,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 - **Anti-Cheat** — Fullscreen lockdown during gameplay blocks external assistance *(desktop only)*
 - **Fully Offline** — Works without an internet connection once installed *(puzzles require internet, web version requires internet)*
 - **Cross-Platform** — Windows 10/11 (x86-64 & ARM64), Linux (x86-64 & ARM), macOS (Apple Silicon & Intel), and any device with a web browser
-- **Chess Variants** — Chess960 (Fischer Random), King of the Hill, and Three‑Check (all versions)
+- **Chess Variants** — Chess960 (Fischer Random), King of the Hill,Three-Check,Atomic,and Antichess (All Versions)
 - **PGN Analysis & Resume** (Desktop only) — Stockfish analyses each move quality; resume playing from any imported PGN
 
 ---
