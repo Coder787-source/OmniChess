@@ -156,6 +156,28 @@ canvas#board-puzzle { display:block; cursor:pointer; }
     <button class="btn win" onclick="startGame(false)">START</button>
     <button class="btn accent" onclick="startGame(true)">LOCAL MULTIPLAYER</button>
   </div>
+  <div style="margin-top:-6px">
+    <button class="btn variant" style="padding:10px 28px;font-size:15px" onclick="enterEveSetup()">ENGINE VS ENGINE</button>
+  </div>
+</div>
+
+<!-- EVE SETUP -->
+<div id="eve-setup" style="display:none;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:18px;background:#1e1e1e">
+  <div style="font-size:42px;font-weight:bold;color:#9b59b6">ENGINE VS ENGINE</div>
+  <div style="font-size:13px;color:#888">Choose a level for each side, then watch the bots play.</div>
+  <div style="display:flex;gap:40px;margin-top:8px">
+    <div>
+      <div style="font-size:14px;font-weight:bold;color:#fff;margin-bottom:8px;text-align:center">WHITE BOT</div>
+      <div id="eve-white-grid" style="display:grid;grid-template-columns:repeat(4,70px);gap:6px"></div>
+    </div>
+    <div>
+      <div style="font-size:14px;font-weight:bold;color:#fff;margin-bottom:8px;text-align:center">BLACK BOT</div>
+      <div id="eve-black-grid" style="display:grid;grid-template-columns:repeat(4,70px);gap:6px"></div>
+    </div>
+  </div>
+  <div id="eve-summary" style="font-size:18px;font-weight:bold;color:#f1c40f;margin-top:4px"></div>
+  <button class="btn win" style="font-size:18px;padding:12px 40px" onclick="startEve()">START</button>
+  <button class="btn" style="padding:10px 32px" onclick="goMenu()">BACK</button>
 </div>
 
 <!-- GAME -->
@@ -277,12 +299,15 @@ let puzzleStartTime = null, puzzleLastFeedback = "";
 let puzzleTimerInterval = null;
 let currentVariant = "standard";
 let checksByWhite = 0, checksByBlack = 0;
+let eveMode = false, eveWhiteLevel = 1, eveBlackLevel = 8;
+let eveInterval = null;
 let sf = null, sfReady = false, pendingBotCb = null, pendingHintCb = null;
 
 // ==================== STOCKFISH & UTILITIES ====================
 function attachSfHandlers(w) { w.onmessage = e => { const l = typeof e.data === 'string' ? e.data : ''; if (!l) return; if (l === 'uciok') { w.postMessage('isready'); return; } if (l === 'readyok') { sfReady = true; return; } if (l.startsWith('bestmove')) { const mv = l.split(' ')[1]; if (mv && mv !== '(none)') { if (pendingHintCb) { pendingHintCb(mv); pendingHintCb = null; } else if (pendingBotCb) { pendingBotCb(mv); pendingBotCb = null; } } } }; w.onerror = () => { sf = null; sfReady = false; }; }
 function initStockfish() { const SF18 = 'https://unpkg.com/stockfish@18.0.7/src/stockfish-18-lite-single.js'; fetch(SF18).then(r => { if (!r.ok) throw new Error(); return r.blob(); }).then(blob => { sf = new Worker(URL.createObjectURL(blob)); attachSfHandlers(sf); sf.postMessage('uci'); }).catch(() => { try { const blob = new Blob(["importScripts('" + SF18 + "');"], { type: 'application/javascript' }); sf = new Worker(URL.createObjectURL(blob)); attachSfHandlers(sf); sf.postMessage('uci'); } catch(e) { console.warn('Stockfish 18 unavailable'); } }); }
 function getBotMove(cb) { if (currentVariant === 'antichess') { cb(randomUCI()); return; } if (!sf || !sfReady) { cb(randomUCI()); return; } const [depth, rChance, thinkMs] = LEVEL_CONFIG[currentLevel]; if (Math.random() < rChance) { cb(randomUCI()); return; } if (mode === "ELO") { sf.postMessage('setoption name UCI_LimitStrength value true'); sf.postMessage(`setoption name UCI_Elo value ${Math.max(1320, Math.min(3190, customElo))}`); } else { sf.postMessage('setoption name UCI_LimitStrength value false'); } sf.postMessage(`position fen ${chess.fen()}`); sf.postMessage(`go depth ${depth} movetime ${thinkMs}`); pendingBotCb = cb; }
+function getBotMoveForLevel(level, cb) { if (currentVariant === 'antichess' || currentVariant === 'atomic') { cb(randomUCI()); return; } if (!sf || !sfReady) { cb(randomUCI()); return; } const [depth, rChance, thinkMs] = LEVEL_CONFIG[level]; if (Math.random() < rChance) { cb(randomUCI()); return; } sf.postMessage('setoption name UCI_LimitStrength value false'); sf.postMessage(`position fen ${chess.fen()}`); sf.postMessage(`go depth ${depth} movetime ${thinkMs}`); pendingBotCb = cb; }
 function randomUCI() { const mvs = chess.moves({ verbose: true }); if (!mvs.length) return null; const m = mvs[Math.floor(Math.random() * mvs.length)]; return m.from + m.to + (m.promotion || ''); }
 function playBeep(freq, dur) { try { if (!window.audioCtx) window.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const o = window.audioCtx.createOscillator(), g = window.audioCtx.createGain(); o.connect(g); g.connect(window.audioCtx.destination); o.type = 'square'; o.frequency.value = freq; g.gain.setValueAtTime(0.15, window.audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, window.audioCtx.currentTime + dur); o.start(window.audioCtx.currentTime); o.stop(window.audioCtx.currentTime + dur); } catch(e) {} }
 function playMoveSound(isCap) { isCap ? playBeep(880, 0.15) : playBeep(440, 0.1); }
@@ -442,12 +467,45 @@ function adjustElo(d) { customElo = Math.max(100, Math.min(3190, customElo + d))
 function setUserColor(c) { userColor = c; buildMenu(); }
 function adjustTimer(d) { timerSetting = Math.max(10, timerSetting + d); buildMenu(); }
 document.addEventListener('keydown', e => { if (state === 'MENU') { if (e.key === 't' || e.key === 'T') { useSeasonal = false; currentThemeIdx = (currentThemeIdx + 1) % THEMES.length; buildMenu(); } if (e.key === 's' || e.key === 'S') { useSeasonal = !useSeasonal; buildMenu(); } } if (state === 'PUZZLE' && e.key === 'Escape') goMenu(); });
-function resetGame() { chess = new Chess(); selectedSq = null; legalDots = []; capturedByWhite = []; capturedByBlack = []; moveHistory = []; boardHistory = []; whiteTime = timerSetting; blackTime = timerSetting; hintsUsed = 0; hintMove = null; pendingPromotion = null; botThinking = false; takebacksUsed = 0; currentOpening = ""; pendingBotCb = null; pendingHintCb = null; checksByWhite = 0; checksByBlack = 0; }
-function show(id) { ['menu','game','puzzle'].forEach(s => { document.getElementById(s).style.display = s === id ? 'flex' : 'none'; }); }
+function resetGame() { chess = new Chess(); selectedSq = null; legalDots = []; capturedByWhite = []; capturedByBlack = []; moveHistory = []; boardHistory = []; whiteTime = timerSetting; blackTime = timerSetting; hintsUsed = 0; hintMove = null; pendingPromotion = null; botThinking = false; takebacksUsed = 0; currentOpening = ""; pendingBotCb = null; pendingHintCb = null; checksByWhite = 0; checksByBlack = 0; eveMode = false; clearInterval(eveInterval); }
+function show(id) { ['menu','game','puzzle','eve-setup'].forEach(s => { document.getElementById(s).style.display = s === id ? 'flex' : 'none'; }); }
 function startGame(multi) { localMultiplayer = multi; resetGame(); state = 'PLAYING'; show('game'); document.getElementById('gameover-overlay').style.display = 'none'; document.getElementById('promo-overlay').style.display = 'none'; buildCoords(false); updateSidebar(); updateVariantUI(); drawBoard(); startTimer(); if (!localMultiplayer && chess.turn() !== userColor) { botThinking = true; setTimeout(requestBotMove, 300); } }
 function enterPuzzle() { state = 'PUZZLE'; show('puzzle'); buildCoords(true); fetchNewPuzzle(); }
-function goMenu() { clearInterval(timerInterval); clearInterval(puzzleTimerInterval); pendingBotCb = null; pendingHintCb = null; botThinking = false; state = 'MENU'; show('menu'); document.getElementById('gameover-overlay').style.display = 'none'; document.getElementById('promo-overlay').style.display = 'none'; buildMenu(); }
-function rematch() { document.getElementById('gameover-overlay').style.display = 'none'; startGame(localMultiplayer); }
+function goMenu() { clearInterval(timerInterval); clearInterval(puzzleTimerInterval); clearInterval(eveInterval); pendingBotCb = null; pendingHintCb = null; botThinking = false; eveMode = false; state = 'MENU'; show('menu'); document.getElementById('gameover-overlay').style.display = 'none'; document.getElementById('promo-overlay').style.display = 'none'; buildMenu(); }
+function rematch() { document.getElementById('gameover-overlay').style.display = 'none'; if (eveMode) { const w = eveWhiteLevel, b = eveBlackLevel; resetGame(); eveWhiteLevel = w; eveBlackLevel = b; eveMode = true; localMultiplayer = false; userColor = 'w'; state = 'PLAYING'; show('game'); document.getElementById('gameover-overlay').style.display = 'none'; buildCoords(false); updateSidebar(); updateVariantUI(); drawBoard(); startTimer(); scheduleEveMove(); } else { startGame(localMultiplayer); } }
+function enterEveSetup() { state = 'EVE_SETUP'; show('eve-setup'); buildEveSetup(); }
+function buildEveSetup() {
+  ['white','black'].forEach(side => {
+    const g = document.getElementById(`eve-${side}-grid`); g.innerHTML = '';
+    const cur = side === 'white' ? eveWhiteLevel : eveBlackLevel;
+    for (let i = 1; i <= 8; i++) {
+      const b = document.createElement('button');
+      b.className = 'btn' + (i === cur ? ' active' : '');
+      b.textContent = `Lv ${i}`; b.style.padding = '8px 0'; b.style.fontSize = '14px';
+      b.onclick = () => { if (side === 'white') eveWhiteLevel = i; else eveBlackLevel = i; buildEveSetup(); };
+      g.appendChild(b);
+    }
+  });
+  document.getElementById('eve-summary').textContent = `White: Level ${eveWhiteLevel}   vs   Black: Level ${eveBlackLevel}`;
+}
+function startEve() { resetGame(); eveMode = true; localMultiplayer = false; userColor = 'w'; state = 'PLAYING'; show('game'); document.getElementById('gameover-overlay').style.display = 'none'; document.getElementById('promo-overlay').style.display = 'none'; buildCoords(false); updateSidebar(); updateVariantUI(); drawBoard(); startTimer(); scheduleEveMove(); }
+function scheduleEveMove() {
+  clearInterval(eveInterval);
+  eveInterval = setTimeout(() => {
+    if (state !== 'PLAYING' || !eveMode) return;
+    if (document.getElementById('gameover-overlay').style.display !== 'none') return;
+    const level = chess.turn() === 'w' ? eveWhiteLevel : eveBlackLevel;
+    getBotMoveForLevel(level, uci => {
+      if (!uci || state !== 'PLAYING' || !eveMode) return;
+      if (currentVariant === 'atomic') executeMoveAtomic(uci.slice(0,2), uci.slice(2,4), uci[4] || null);
+      else executeMove(uci.slice(0,2), uci.slice(2,4), uci[4] || null);
+      drawBoard(); updateSidebar(); updateVariantUI();
+      const vr = checkVariantWin();
+      if (vr) { setTimeout(() => showGameOver(vr), 400); return; }
+      scheduleEveMove();
+    });
+  }, 350);
+}
 function startTimer() { clearInterval(timerInterval); lastTick = Date.now(); timerInterval = setInterval(() => { if (state !== 'PLAYING') return; if (document.getElementById('gameover-overlay').style.display !== 'none') return; const now = Date.now(), dt = (now - lastTick) / 1000; lastTick = now; if (chess.turn() === 'w') whiteTime = Math.max(0, whiteTime - dt); else blackTime = Math.max(0, blackTime - dt); updateSidebar(); if (whiteTime <= 0) showGameOver("Time — Black wins!"); else if (blackTime <= 0) showGameOver("Time — White wins!"); }, 100); }
 function fmtTime(s) { s = Math.max(0, s); const m = Math.floor(s / 60), sc = Math.floor(s % 60); return `${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`; }
 
@@ -455,16 +513,18 @@ function fmtTime(s) { s = Math.max(0, s); const m = Math.floor(s / 60), sc = Mat
 function updateSidebar() {
   const bl = mode === 'ELO' ? `BOT (${customElo})` : `BOT (Lvl ${currentLevel})`;
   let tl, bl2, tt, bt, tc, bc;
-  if (localMultiplayer) { tl = 'PLAYER 2 (Black)'; bl2 = 'PLAYER 1 (White)'; tt = blackTime; bt = whiteTime; tc = capturedByBlack; bc = capturedByWhite; }
+  if (eveMode) { tl = `BOT Lvl ${eveBlackLevel} (Black)`; bl2 = `BOT Lvl ${eveWhiteLevel} (White)`; tt = blackTime; bt = whiteTime; tc = capturedByBlack; bc = capturedByWhite; }
+  else if (localMultiplayer) { tl = 'PLAYER 2 (Black)'; bl2 = 'PLAYER 1 (White)'; tt = blackTime; bt = whiteTime; tc = capturedByBlack; bc = capturedByWhite; }
   else if (userColor === 'w') { tl = `${bl} (Black)`; bl2 = 'YOU (White)'; tt = blackTime; bt = whiteTime; tc = capturedByBlack; bc = capturedByWhite; }
   else { tl = `${bl} (White)`; bl2 = 'YOU (Black)'; tt = whiteTime; bt = blackTime; tc = capturedByWhite; bc = capturedByBlack; }
   document.getElementById('top-label').textContent = tl; document.getElementById('btm-label').textContent = bl2;
   document.getElementById('top-clock').textContent = fmtTime(tt); document.getElementById('btm-clock').textContent = fmtTime(bt);
   document.getElementById('top-captures').innerHTML = tc.map(p => `<span style="color:${p === p.toUpperCase() ? '#ffffff' : '#111111'}">${SYMBOLS[p] || p}</span>`).join('');
   document.getElementById('btm-captures').innerHTML = bc.map(p => `<span style="color:${p === p.toUpperCase() ? '#ffffff' : '#111111'}">${SYMBOLS[p] || p}</span>`).join('');
-  const hintBtn = document.getElementById('hint-btn'); hintBtn.textContent = `HINT (${3 - hintsUsed} left)`; hintBtn.className = hintsUsed < 3 ? 'btn accent' : 'btn loss'; hintBtn.disabled = hintsUsed >= 3;
+  const hintBtn = document.getElementById('hint-btn'); hintBtn.textContent = `HINT (${3 - hintsUsed} left)`; hintBtn.className = hintsUsed < 3 ? 'btn accent' : 'btn loss'; hintBtn.disabled = hintsUsed >= 3 || eveMode;
   const tbBtn = document.getElementById('takeback-btn');
-  if (localMultiplayer) { const turnLabel = chess.turn() === 'w' ? "WHITE'S TURN" : "BLACK'S TURN"; tbBtn.textContent = turnLabel; tbBtn.className = 'btn'; tbBtn.disabled = false; tbBtn.onclick = null; }
+  if (eveMode) { tbBtn.textContent = 'WATCHING'; tbBtn.className = 'btn'; tbBtn.disabled = true; tbBtn.onclick = null; }
+  else if (localMultiplayer) { const turnLabel = chess.turn() === 'w' ? "WHITE'S TURN" : "BLACK'S TURN"; tbBtn.textContent = turnLabel; tbBtn.className = 'btn'; tbBtn.disabled = false; tbBtn.onclick = null; }
   else { tbBtn.onclick = doTakeback; const tbLimit = getTakebackLimit(); const tbLeft = tbLimit - takebacksUsed; const canTakeback = tbLeft > 0 && boardHistory.length >= 2 && chess.turn() === userColor; tbBtn.textContent = `TAKEBACK (${tbLeft} left)`; tbBtn.className = canTakeback ? 'btn' : 'btn loss'; tbBtn.disabled = !canTakeback; }
   const mhEl = document.getElementById('move-history-text'); mhEl.innerHTML = ''; const start = Math.max(0, moveHistory.length - 14); for (let i = start; i < moveHistory.length; i++) { const span = document.createElement('span'); span.textContent = `${i + 1}. ${moveHistory[i]}`; span.style.fontSize = '13px'; mhEl.appendChild(span); }
   document.getElementById('opening-display').textContent = currentOpening ? `Opening: ${currentOpening}` : ''; const sn = getSeasonalName(); document.getElementById('season-display').textContent = sn ? `Theme: ${sn}` : '';
@@ -492,9 +552,9 @@ function executeMove(from, to, promo) {
   const variantResult = checkVariantWin(); if (variantResult) { setTimeout(() => showGameOver(variantResult), 400); return; }
   if (!localMultiplayer && chess.turn() !== userColor) { botThinking = true; setTimeout(requestBotMove, 150); }
 }
-function requestBotMove() { if (state !== 'PLAYING') return; getBotMove(uci => { botThinking = false; if (!uci || state !== 'PLAYING') return; if (currentVariant === 'atomic') executeMoveAtomic(uci.slice(0,2), uci.slice(2,4), uci[4] || null); else executeMove(uci.slice(0,2), uci.slice(2,4), uci[4] || null); drawBoard(); updateSidebar(); updateVariantUI(); }); }
+function requestBotMove() { if (state !== 'PLAYING' || eveMode) return; getBotMove(uci => { botThinking = false; if (!uci || state !== 'PLAYING') return; if (currentVariant === 'atomic') executeMoveAtomic(uci.slice(0,2), uci.slice(2,4), uci[4] || null); else executeMove(uci.slice(0,2), uci.slice(2,4), uci[4] || null); drawBoard(); updateSidebar(); updateVariantUI(); }); }
 boardCvs.addEventListener('click', e => {
-  if (state !== 'PLAYING') return; if (document.getElementById('gameover-overlay').style.display !== 'none') return; if (botThinking) return;
+  if (state !== 'PLAYING') return; if (document.getElementById('gameover-overlay').style.display !== 'none') return; if (botThinking) return; if (eveMode) return;
   const rect = boardCvs.getBoundingClientRect(); const col = Math.floor((e.clientX - rect.left) / SQ); const row = Math.floor((e.clientY - rect.top) / SQ);
   const persp = localMultiplayer ? chess.turn() : userColor; const sq = colRowToSq(col, row, persp); const activeColor = localMultiplayer ? chess.turn() : userColor;
   if (selectedSq === null) { const p = chess.get(sq); if (p && p.color === activeColor) { selectedSq = sq; legalDots = chess.moves({ square: sq, verbose: true }).map(m => m.to); } }
