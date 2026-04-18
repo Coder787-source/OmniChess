@@ -45,7 +45,7 @@ Play instantly in your browser — no installation required!
 ### What's included:
 
 - **Stockfish 18** engine with 8 difficulty levels (upgraded from Stockfish 10)
-- **Chess variants** – Chess960 (Fischer Random), King of the Hill, and Three‑Check
+- **Chess variants** – Chess960 (Fischer Random), King of the Hill,Three‑Check,Atomic,and Antichess
 - Daily puzzles from Lichess
 - Local multiplayer (hotseat mode)
 - Time controls (blitz, rapid, classical)
