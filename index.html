@@ -207,10 +207,8 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <button class="btn" onclick="goMenu()">HOME MENU</button>
       <button class="btn accent" id="hint-btn" onclick="useHint()">HINT (3 left)</button>
       <button class="btn accent" onclick="downloadPGN()">DOWNLOAD PGN</button>
-      <div style="display:flex;gap:6px">
-        <button class="btn" style="flex:1" onclick="openSettings()">SETTINGS</button>
-        <button class="btn" id="takeback-btn" style="flex:1" onclick="doTakeback()">TAKEBACK (8 left)</button>
-      </div>
+      <button class="btn" onclick="openSettings()">SETTINGS</button>
+      <button class="btn" id="takeback-btn" onclick="doTakeback()">TAKEBACK (8 left)</button>
     </div>
     <div class="player-card">
       <div class="player-label" id="btm-label">YOU (White)</div>
