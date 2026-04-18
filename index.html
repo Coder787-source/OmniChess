@@ -485,7 +485,22 @@ function checkVariantWin() {
         return null;
     }
     if (chess.game_over()) { if (chess.in_checkmate()) return chess.turn() === 'b' ? 'White wins!' : 'Black wins!'; return 'DRAW'; }
-    if (currentVariant === 'koth') { const wk = chess.board().flat().find(p => p && p.type === 'k' && p.color === 'w'); const bk = chess.board().flat().find(p => p && p.type === 'k' && p.color === 'b'); if (wk && KOTH_CENTRE.includes(wk.square)) return 'White wins! (King of the Hill)'; if (bk && KOTH_CENTRE.includes(bk.square)) return 'Black wins! (King of the Hill)'; }
+    if (currentVariant === 'koth') {
+        const files = 'abcdefgh';
+        let wkSq = null, bkSq = null;
+        for (let r = 0; r < 8; r++) {
+            for (let f = 0; f < 8; f++) {
+                const p = chess.board()[r][f];
+                if (p && p.type === 'k') {
+                    const sq = files[f] + (8 - r);
+                    if (p.color === 'w') wkSq = sq;
+                    else bkSq = sq;
+                }
+            }
+        }
+        if (wkSq && KOTH_CENTRE.includes(wkSq)) return 'White wins! (King of the Hill)';
+        if (bkSq && KOTH_CENTRE.includes(bkSq)) return 'Black wins! (King of the Hill)';
+    }
     if (currentVariant === 'threecheck') { if (checksByWhite >= 3) return 'White wins! (Three-check)'; if (checksByBlack >= 3) return 'Black wins! (Three-check)'; }
     return null;
 }
