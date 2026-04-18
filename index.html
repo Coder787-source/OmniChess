@@ -144,6 +144,13 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <button class="btn" onclick="adjustTimer(10)">+10</button>
       <button class="btn" onclick="adjustTimer(60)">+60</button>
     </div>
+    <div style="margin-top:8px;font-size:13px;font-weight:bold;color:#ecf0f1">INCREMENT: <span id="increment-value" style="color:#f1c40f">+0s/move</span></div>
+    <div class="timer-btns" style="margin-top:4px">
+      <button class="btn" style="padding:6px 10px;font-size:13px" onclick="adjustIncrement(-5)">-5</button>
+      <button class="btn" style="padding:6px 10px;font-size:13px" onclick="adjustIncrement(-1)">-1</button>
+      <button class="btn" style="padding:6px 10px;font-size:13px" onclick="adjustIncrement(1)">+1</button>
+      <button class="btn" style="padding:6px 10px;font-size:13px" onclick="adjustIncrement(5)">+5</button>
+    </div>
   </div>
   <div style="text-align:center">
     <div class="panel-label">VARIANT: <span id="variant-name-display" style="color:#9b59b6">Standard</span></div>
@@ -210,6 +217,10 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <button class="btn accent" id="hint-btn" onclick="useHint()">HINT (3 left)</button>
       <button class="btn accent" onclick="downloadPGN()">DOWNLOAD PGN</button>
       <button class="btn" id="takeback-btn" onclick="doTakeback()">TAKEBACK (8 left)</button>
+      <div style="display:flex;gap:6px" id="resign-draw-row">
+        <button class="btn loss" style="flex:1" id="resign-btn" onclick="doResign()">RESIGN</button>
+        <button class="btn accent" style="flex:1" id="draw-btn" onclick="offerDraw()">DRAW?</button>
+      </div>
     </div>
     <div class="player-card">
       <div class="player-label" id="btm-label">YOU (White)</div>
@@ -293,7 +304,8 @@ const PUZZLE_SLOW_THRESHOLD = 60;
 
 // ==================== GLOBAL STATE ====================
 let state = "MENU", mode = "PRESET", userColor = 'w';
-let currentLevel = 1, customElo = 1500, timerSetting = 600;
+let currentLevel = 1, customElo = 1500, timerSetting = 600, incrementSetting = 0;
+let resigned = false, drawOfferPending = false;
 let currentThemeIdx = 0, useSeasonal = true;
 const currentMonth = new Date().getMonth() + 1;
 let chess = new Chess();
@@ -417,8 +429,8 @@ function executeMoveAtomic(from, to, promo) {
     
     moveHistory.push(result.san);
     hintMove = null;
-    
-    // Track captured piece (normal capture)
+    // Apply increment
+    if (incrementSetting > 0) { if (chess.turn() === 'b') whiteTime += incrementSetting; else blackTime += incrementSetting; }
     if (cap) {
         if (result.color === 'w') capturedByWhite.push(cap.type);
         else capturedByBlack.push(cap.type.toUpperCase());
@@ -484,8 +496,9 @@ function buildMenu() { const g = document.getElementById('level-grid'); g.innerH
 function adjustElo(d) { customElo = Math.max(100, Math.min(3190, customElo + d)); mode = 'ELO'; buildMenu(); }
 function setUserColor(c) { userColor = c; buildMenu(); }
 function adjustTimer(d) { timerSetting = Math.max(10, timerSetting + d); buildMenu(); }
+function adjustIncrement(d) { incrementSetting = Math.max(0, incrementSetting + d); document.getElementById('increment-value').textContent = `+${incrementSetting}s/move`; }
 document.addEventListener('keydown', e => { if (state === 'MENU') { if (e.key === 't' || e.key === 'T') { useSeasonal = false; currentThemeIdx = (currentThemeIdx + 1) % THEMES.length; buildMenu(); } if (e.key === 's' || e.key === 'S') { useSeasonal = !useSeasonal; buildMenu(); } } if (state === 'PUZZLE' && e.key === 'Escape') goMenu(); });
-function resetGame() { chess = new Chess(); selectedSq = null; legalDots = []; capturedByWhite = []; capturedByBlack = []; moveHistory = []; boardHistory = []; whiteTime = timerSetting; blackTime = timerSetting; hintsUsed = 0; hintMove = null; pendingPromotion = null; botThinking = false; takebacksUsed = 0; currentOpening = ""; pendingBotCb = null; pendingHintCb = null; checksByWhite = 0; checksByBlack = 0; eveMode = false; clearInterval(eveInterval); }
+function resetGame() { chess = new Chess(); selectedSq = null; legalDots = []; capturedByWhite = []; capturedByBlack = []; moveHistory = []; boardHistory = []; whiteTime = timerSetting; blackTime = timerSetting; hintsUsed = 0; hintMove = null; pendingPromotion = null; botThinking = false; takebacksUsed = 0; currentOpening = ""; pendingBotCb = null; pendingHintCb = null; checksByWhite = 0; checksByBlack = 0; eveMode = false; clearInterval(eveInterval); resigned = false; drawOfferPending = false; }
 function show(id) { ['menu','game','puzzle','eve-setup'].forEach(s => { document.getElementById(s).style.display = s === id ? 'flex' : 'none'; }); }
 function startGame(multi) { localMultiplayer = multi; resetGame(); state = 'PLAYING'; show('game'); document.getElementById('gameover-overlay').style.display = 'none'; document.getElementById('promo-overlay').style.display = 'none'; buildCoords(false); updateSidebar(); updateVariantUI(); drawBoard(); startTimer(); if (!localMultiplayer && chess.turn() !== userColor) { botThinking = true; setTimeout(requestBotMove, 300); } }
 function enterPuzzle() { state = 'PUZZLE'; show('puzzle'); buildCoords(true); fetchNewPuzzle(); }
@@ -524,7 +537,10 @@ function scheduleEveMove() {
     });
   }, 350);
 }
-function startTimer() { clearInterval(timerInterval); lastTick = Date.now(); timerInterval = setInterval(() => { if (state !== 'PLAYING') return; if (document.getElementById('gameover-overlay').style.display !== 'none') return; const now = Date.now(), dt = (now - lastTick) / 1000; lastTick = now; if (chess.turn() === 'w') whiteTime = Math.max(0, whiteTime - dt); else blackTime = Math.max(0, blackTime - dt); updateSidebar(); if (whiteTime <= 0) showGameOver("Time — Black wins!"); else if (blackTime <= 0) showGameOver("Time — White wins!"); }, 100); }
+function startTimer() { clearInterval(timerInterval); lastTick = Date.now(); timerInterval = setInterval(() => { if (state !== 'PLAYING') return; if (document.getElementById('gameover-overlay').style.display !== 'none') return; const drawAgreed = (whiteTime === -2 || blackTime === -2); if (drawAgreed || resigned) return; const now = Date.now(), dt = (now - lastTick) / 1000; lastTick = now; if (chess.turn() === 'w') whiteTime = Math.max(0, whiteTime - dt); else blackTime = Math.max(0, blackTime - dt); updateSidebar(); if (whiteTime <= 0) showGameOver("Time — Black wins!"); else if (blackTime <= 0) showGameOver("Time — White wins!"); }, 100); }
+function doResign() { if (eveMode) return; resigned = true; const winner = localMultiplayer ? (chess.turn() === 'w' ? 'Black wins! (Resigned)' : 'White wins! (Resigned)') : (userColor === 'w' ? 'Black wins! (Resigned)' : 'White wins! (Resigned)'); showGameOver(winner); }
+function offerDraw() { if (eveMode || drawOfferPending) return; if (localMultiplayer) { drawOfferPending = true; updateSidebar(); return; } const botAccepts = moveHistory.length >= 20; if (botAccepts) { whiteTime = -2; showGameOver('Draw agreed!'); } else { showToast('Bot declines the draw.'); } }
+function confirmDraw() { if (!drawOfferPending || !localMultiplayer) return; whiteTime = -2; showGameOver('Draw agreed!'); }
 function fmtTime(s) { s = Math.max(0, s); const m = Math.floor(s / 60), sc = Math.floor(s % 60); return `${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`; }
 
 // ==================== SIDEBAR & BOARD DRAWING ====================
@@ -544,6 +560,14 @@ function updateSidebar() {
   if (eveMode) { tbBtn.textContent = 'WATCHING'; tbBtn.className = 'btn'; tbBtn.disabled = true; tbBtn.onclick = null; }
   else if (localMultiplayer) { const turnLabel = chess.turn() === 'w' ? "WHITE'S TURN" : "BLACK'S TURN"; tbBtn.textContent = turnLabel; tbBtn.className = 'btn'; tbBtn.disabled = false; tbBtn.onclick = null; }
   else { tbBtn.onclick = doTakeback; const tbLimit = getTakebackLimit(); const tbLeft = tbLimit - takebacksUsed; const canTakeback = tbLeft > 0 && boardHistory.length >= 2 && chess.turn() === userColor; tbBtn.textContent = `TAKEBACK (${tbLeft} left)`; tbBtn.className = canTakeback ? 'btn' : 'btn loss'; tbBtn.disabled = !canTakeback; }
+  // Resign / Draw row
+  const rdr = document.getElementById('resign-draw-row');
+  const drawBtn = document.getElementById('draw-btn');
+  const resignBtn = document.getElementById('resign-btn');
+  if (rdr) {
+    rdr.style.display = eveMode ? 'none' : 'flex';
+    if (drawBtn) { if (drawOfferPending && localMultiplayer) { drawBtn.textContent = 'CONFIRM DRAW'; drawBtn.onclick = confirmDraw; } else { drawBtn.textContent = drawOfferPending ? 'WAITING...' : 'DRAW?'; drawBtn.onclick = offerDraw; drawBtn.disabled = drawOfferPending && !localMultiplayer; } }
+  }
   const mhEl = document.getElementById('move-history-text'); mhEl.innerHTML = ''; const start = Math.max(0, moveHistory.length - 14); for (let i = start; i < moveHistory.length; i++) { const span = document.createElement('span'); span.textContent = `${i + 1}. ${moveHistory[i]}`; span.style.fontSize = '13px'; mhEl.appendChild(span); }
   document.getElementById('opening-display').textContent = currentOpening ? `Opening: ${currentOpening}` : ''; const sn = getSeasonalName(); document.getElementById('season-display').textContent = sn ? `Theme: ${sn}` : '';
 }
@@ -561,6 +585,8 @@ function executeMove(from, to, promo) {
   boardHistory.push({ fen: chess.fen(), capW: [...capturedByWhite], capB: [...capturedByBlack], hist: [...moveHistory] });
   const result = chess.move({ from, to, promotion: promo || 'q' }); if (!result) { boardHistory.pop(); return; }
   moveHistory.push(result.san); hintMove = null;
+  // Apply increment
+  if (incrementSetting > 0) { if (chess.turn() === 'b') whiteTime += incrementSetting; else blackTime += incrementSetting; }
   if (cap) { if (result.color === 'w') capturedByWhite.push(cap.type); else capturedByBlack.push(cap.type.toUpperCase()); }
   if (result.flags.includes('e')) { if (result.color === 'w') capturedByWhite.push('p'); else capturedByBlack.push('P'); }
   const stack = chess.history({ verbose: true }).map(m => m.from + m.to); let found = ''; for (let i = stack.length; i >= 1; i--) { const k = stack.slice(0, i).join(' '); if (ECO_OPENINGS[k]) { found = ECO_OPENINGS[k]; break; } } currentOpening = found;
