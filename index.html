@@ -158,6 +158,8 @@ canvas#board-puzzle { display:block; cursor:pointer; }
   </div>
   <div style="margin-top:-6px">
     <button class="btn variant" style="padding:10px 28px;font-size:15px" onclick="enterEveSetup()">ENGINE VS ENGINE</button>
+    &nbsp;
+    <button class="btn" style="padding:10px 28px;font-size:15px" onclick="openSettings()">SETTINGS</button>
   </div>
 </div>
 
@@ -207,7 +209,6 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <button class="btn" onclick="goMenu()">HOME MENU</button>
       <button class="btn accent" id="hint-btn" onclick="useHint()">HINT (3 left)</button>
       <button class="btn accent" onclick="downloadPGN()">DOWNLOAD PGN</button>
-      <button class="btn" onclick="openSettings()">SETTINGS</button>
       <button class="btn" id="takeback-btn" onclick="doTakeback()">TAKEBACK (8 left)</button>
     </div>
     <div class="player-card">
