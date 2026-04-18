@@ -207,7 +207,10 @@ canvas#board-puzzle { display:block; cursor:pointer; }
       <button class="btn" onclick="goMenu()">HOME MENU</button>
       <button class="btn accent" id="hint-btn" onclick="useHint()">HINT (3 left)</button>
       <button class="btn accent" onclick="downloadPGN()">DOWNLOAD PGN</button>
-      <button class="btn" id="takeback-btn" onclick="doTakeback()">TAKEBACK (8 left)</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn" style="flex:1" onclick="openSettings()">SETTINGS</button>
+        <button class="btn" id="takeback-btn" style="flex:1" onclick="doTakeback()">TAKEBACK (8 left)</button>
+      </div>
     </div>
     <div class="player-card">
       <div class="player-label" id="btm-label">YOU (White)</div>
@@ -248,6 +251,17 @@ canvas#board-puzzle { display:block; cursor:pointer; }
 <div class="overlay" id="promo-overlay" style="display:none">
   <div class="overlay-title">PROMOTE</div>
   <div class="promo-row" id="promo-row"></div>
+</div>
+
+<!-- Settings overlay -->
+<div class="overlay" id="settings-overlay" style="display:none;z-index:60">
+  <div style="background:#262421;border-radius:15px;padding:30px 40px;min-width:400px">
+    <div style="font-size:22px;font-weight:bold;color:#f1c40f;text-align:center;margin-bottom:24px">SETTINGS</div>
+    <div id="settings-rows"></div>
+    <div style="text-align:center;margin-top:24px">
+      <button class="btn" style="padding:10px 36px" onclick="closeSettings()">CLOSE</button>
+    </div>
+  </div>
 </div>
 
 <!-- Game-over overlay -->
@@ -301,6 +315,11 @@ let currentVariant = "standard";
 let checksByWhite = 0, checksByBlack = 0;
 let eveMode = false, eveWhiteLevel = 1, eveBlackLevel = 8;
 let eveInterval = null;
+// Settings — persisted in localStorage
+const SETTINGS_KEY = 'omnichess_settings';
+function loadSettings() { try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)); return Object.assign({moveSounds:true,captureSounds:true,showDots:true}, s||{}); } catch(e) { return {moveSounds:true,captureSounds:true,showDots:true}; } }
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {} }
+let settings = loadSettings();
 let sf = null, sfReady = false, pendingBotCb = null, pendingHintCb = null;
 
 // ==================== STOCKFISH & UTILITIES ====================
@@ -310,7 +329,7 @@ function getBotMove(cb) { if (currentVariant === 'antichess') { cb(randomUCI());
 function getBotMoveForLevel(level, cb) { if (currentVariant === 'antichess' || currentVariant === 'atomic') { cb(randomUCI()); return; } if (!sf || !sfReady) { cb(randomUCI()); return; } const [depth, rChance, thinkMs] = LEVEL_CONFIG[level]; if (Math.random() < rChance) { cb(randomUCI()); return; } sf.postMessage('setoption name UCI_LimitStrength value false'); sf.postMessage(`position fen ${chess.fen()}`); sf.postMessage(`go depth ${depth} movetime ${thinkMs}`); pendingBotCb = cb; }
 function randomUCI() { const mvs = chess.moves({ verbose: true }); if (!mvs.length) return null; const m = mvs[Math.floor(Math.random() * mvs.length)]; return m.from + m.to + (m.promotion || ''); }
 function playBeep(freq, dur) { try { if (!window.audioCtx) window.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const o = window.audioCtx.createOscillator(), g = window.audioCtx.createGain(); o.connect(g); g.connect(window.audioCtx.destination); o.type = 'square'; o.frequency.value = freq; g.gain.setValueAtTime(0.15, window.audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, window.audioCtx.currentTime + dur); o.start(window.audioCtx.currentTime); o.stop(window.audioCtx.currentTime + dur); } catch(e) {} }
-function playMoveSound(isCap) { isCap ? playBeep(880, 0.15) : playBeep(440, 0.1); }
+function playMoveSound(isCap) { if (isCap) { if (settings.captureSounds) playBeep(880, 0.15); } else { if (settings.moveSounds) playBeep(440, 0.1); } }
 
 // ==================== ATOMIC EXPLOSION — KINGS EXPLODE! ====================
 function atomicExplode(board, explosionSquare) {
@@ -534,7 +553,7 @@ const boardCvs = document.getElementById('board'), bCtx = boardCvs.getContext('2
 function colRowToSq(col, row, persp) { const file = persp === 'w' ? col : 7 - col; const rank = persp === 'w' ? 7 - row : row; return String.fromCharCode(97 + file) + (rank + 1); }
 function sqToColRow(sq, persp) { const file = sq.charCodeAt(0) - 97, rank = parseInt(sq[1]) - 1; return persp === 'w' ? [file, 7 - rank] : [7 - file, rank]; }
 function drawBoardOnCtx(ctx, game, selSq, dots, hint, persp) { const theme = getActiveTheme(); ctx.clearRect(0, 0, 600, 600); for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { const sq = colRowToSq(col, row, persp); const x = col * SQ, y = row * SQ; const isLight = (row + col) % 2 === 0; let fill = isLight ? theme[0] : theme[1]; const piece = game.get(sq); if (piece && piece.type === 'k' && piece.color === game.turn() && game.in_check()) fill = '#e74c3c'; if (selSq === sq) fill = '#f7f769'; if (hint && (hint.from === sq || hint.to === sq)) fill = 'rgba(52,152,219,0.7)'; if (currentVariant === 'koth' && KOTH_CENTRE.includes(sq)) fill = isLight ? '#d4b896' : '#a07850'; ctx.fillStyle = fill; ctx.fillRect(x, y, SQ, SQ); if (piece) { const sym = SYMBOLS[piece.color === 'w' ? piece.type.toUpperCase() : piece.type]; ctx.font = `bold ${Math.floor(SQ * 0.72)}px "Segoe UI Symbol",serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeStyle = piece.color === 'w' ? '#444444' : '#cccccc'; ctx.lineWidth = 1.5; ctx.fillStyle = piece.color === 'w' ? '#ffffff' : '#111111'; ctx.strokeText(sym, x + SQ / 2, y + SQ / 2 + 2); ctx.fillText(sym, x + SQ / 2, y + SQ / 2 + 2); } } } for (const dotSq of dots) { const [dc, dr] = sqToColRow(dotSq, persp); const cx = dc * SQ + SQ / 2, cy = dr * SQ + SQ / 2; const hasPiece = game.get(dotSq); ctx.beginPath(); if (hasPiece) { ctx.arc(cx, cy, SQ / 2 - 3, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(231,76,60,0.63)'; ctx.lineWidth = 4; ctx.stroke(); } else { ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.31)'; ctx.fill(); } } }
-function drawBoard() { const persp = localMultiplayer ? chess.turn() : userColor; drawBoardOnCtx(bCtx, chess, selectedSq, legalDots, hintMove, persp); }
+function drawBoard() { const persp = localMultiplayer ? chess.turn() : userColor; drawBoardOnCtx(bCtx, chess, selectedSq, settings.showDots ? legalDots : [], hintMove, persp); }
 function drawPuzzleBoard() { if (puzzleChess) drawBoardOnCtx(pCtx, puzzleChess, puzzleSelectedSq, puzzleLegalDots, null, puzzlePlayerColor); }
 
 // ==================== MOVE EXECUTION & EVENT HANDLERS ====================
@@ -568,6 +587,42 @@ boardCvs.addEventListener('click', e => {
 function showPromotion() { const row = document.getElementById('promo-row'); row.innerHTML = ''; const pieces = chess.turn() === 'w' ? ['Q','R','B','N'] : ['q','r','b','n']; for (const p of pieces) { const b = document.createElement('button'); b.className = 'promo-btn'; b.textContent = SYMBOLS[p]; b.onclick = () => { document.getElementById('promo-overlay').style.display = 'none'; if (pendingPromotion) { if (currentVariant === 'atomic') executeMoveAtomic(pendingPromotion.from, pendingPromotion.to, p.toLowerCase()); else executeMove(pendingPromotion.from, pendingPromotion.to, p.toLowerCase()); pendingPromotion = null; drawBoard(); } }; row.appendChild(b); } document.getElementById('promo-overlay').style.display = 'flex'; }
 function useHint() { if (hintsUsed >= 3 || !sf || !sfReady) return; if (chess.turn() !== userColor) return; hintsUsed++; sf.postMessage(`position fen ${chess.fen()}`); sf.postMessage('go depth 12 movetime 500'); pendingHintCb = uci => { if (uci && uci.length >= 4) { hintMove = { from: uci.slice(0,2), to: uci.slice(2,4) }; drawBoard(); } }; updateSidebar(); }
 function doTakeback() { const limit = getTakebackLimit(); if (takebacksUsed >= limit || boardHistory.length === 0) return; botThinking = false; pendingBotCb = null; const steps = Math.min(2, boardHistory.length); for (let i = 0; i < steps; i++) boardHistory.pop(); if (boardHistory.length > 0) { const s = boardHistory[boardHistory.length - 1]; chess = new Chess(s.fen); capturedByWhite = [...s.capW]; capturedByBlack = [...s.capB]; moveHistory = [...s.hist]; } else { chess = new Chess(); capturedByWhite = []; capturedByBlack = []; moveHistory = []; } selectedSq = null; legalDots = []; hintMove = null; takebacksUsed++; updateSidebar(); drawBoard(); }
+function openSettings() {
+  buildSettingsRows();
+  document.getElementById('settings-overlay').style.display = 'flex';
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').style.display = 'none';
+}
+function buildSettingsRows() {
+  const container = document.getElementById('settings-rows');
+  container.innerHTML = '';
+  const rows = [
+    { label: 'Move Sounds',    key: 'moveSounds' },
+    { label: 'Capture Sounds', key: 'captureSounds' },
+    { label: 'Legal Dots',     key: 'showDots' },
+  ];
+  rows.forEach(({ label, key }) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px';
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    lbl.style.cssText = 'font-size:16px;font-weight:bold;color:#ffffff';
+    const tog = document.createElement('button');
+    tog.className = 'btn ' + (settings[key] ? 'win' : 'loss');
+    tog.textContent = settings[key] ? 'ON' : 'OFF';
+    tog.style.cssText = 'width:70px;padding:8px 0;font-size:14px';
+    tog.onclick = () => {
+      settings[key] = !settings[key];
+      saveSettings();
+      buildSettingsRows();
+      drawBoard();
+    };
+    row.appendChild(lbl);
+    row.appendChild(tog);
+    container.appendChild(row);
+  });
+}
 function showGameOver(msg) { clearInterval(timerInterval); document.getElementById('gameover-msg').textContent = msg; document.getElementById('gameover-overlay').style.display = 'flex'; }
 function downloadPGN() { const w = userColor === 'w' ? 'Player' : 'Stockfish'; const b = userColor === 'b' ? 'Player' : 'Stockfish'; const pairs = []; for (let i = 0; i < moveHistory.length; i += 2) pairs.push(`${Math.floor(i/2)+1}. ${moveHistory[i]}${moveHistory[i+1] ? ' ' + moveHistory[i+1] : ''}`); const pgn = `[Event "OmniChess Game"]\n[Date "${new Date().toISOString().slice(0,10)}"]\n[White "${w}"]\n[Black "${b}"]\n\n${pairs.join(' ')}`; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([pgn], { type: 'text/plain' })); a.download = `game_${Date.now()}.pgn`; a.click(); showToast('PGN saved!'); }
 
