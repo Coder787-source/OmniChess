@@ -29,7 +29,7 @@ An open-source chess game built entirely in Python — play against Stockfish, a
 - **Anti-Cheat** — Fullscreen lockdown during gameplay blocks external assistance *(desktop only)*
 - **Fully Offline** — Works without an internet connection once installed *(puzzles require internet, web version requires internet)*
 - **Cross-Platform** — Windows 10/11 (x86-64 & ARM64), Linux (x86-64 & ARM), macOS (Apple Silicon & Intel), and any device with a web browser
-- **Chess Variants** — Chess960 (Fischer Random), King of the Hill,Three-Check,Atomic,and Antichess (All Versions)
+- **Chess Variants** — Chess960 (Fischer Random), King of the Hill,Three-Check,Atomic,Antichess,Blindfold,and Crazyhouse (All Versions)
 - **PGN Analysis & Resume** (Desktop only) — Stockfish analyses each move quality; resume playing from any imported PGN
 - **Engine vs Engine** — Watch Stockfish play against itself with adjustable thinking depth.
 - **Increment Time Controls** — Choose a per-move time increment (e.g. +2s/move) from the menu. Works across all game modes and variants. 
@@ -45,7 +45,7 @@ Play instantly in your browser — no installation required!
 ### What's included:
 
 - **Stockfish 18** engine with 8 difficulty levels (upgraded from Stockfish 10)
-- **Chess variants** – Chess960 (Fischer Random), King of the Hill,Three‑Check,Atomic,and Antichess
+- **Chess variants** – Chess960 (Fischer Random), King of the Hill,Three‑Check,Atomic,Antichess,Blindfold,and Crazyhouse
 - Daily puzzles from Lichess
 - Local multiplayer (hotseat mode)
 - Time controls (blitz, rapid, classical)
