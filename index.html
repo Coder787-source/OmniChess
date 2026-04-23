@@ -328,6 +328,7 @@ let eveMode = false, eveWhiteLevel = 1, eveBlackLevel = 8;
 let eveInterval = null;
 let czhPocket = {w:[],b:[]};
 let czhSelectedPocket = null;
+let czhDragPiece = null;
 // Settings — persisted in localStorage
 const SETTINGS_KEY = 'omnichess_settings';
 function loadSettings() { try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)); return Object.assign({moveSounds:true,captureSounds:true,showDots:true,checkSounds:true}, s||{}); } catch(e) { return {moveSounds:true,captureSounds:true,showDots:true,checkSounds:true}; } }
@@ -622,7 +623,20 @@ function updateSidebar() {
     const myPocket = czhPocket[myColor] || [];
     const oppPocket = czhPocket[myColor === 'w' ? 'b' : 'w'] || [];
     const sym = (t, c) => SYMBOLS[c === 'w' ? t.toUpperCase() : t] || t;
-    if (myPocket.length) document.getElementById('btm-captures').innerHTML += ' <span style="color:#9b59b6;font-size:13px">[' + myPocket.map(t => sym(t, myColor)).join('') + ']</span>';
+    if (myPocket.length) {
+      const pEl = document.getElementById('btm-captures');
+      pEl.appendChild(document.createTextNode(' '));
+      myPocket.forEach(t => {
+        const s = document.createElement('span');
+        s.textContent = sym(t, myColor);
+        s.draggable = true;
+        s.title = 'Drag to drop on board';
+        s.style.cssText = 'color:#9b59b6;font-size:22px;cursor:grab;display:inline-block';
+        s.addEventListener('dragstart', e => { e.dataTransfer.setData('czh-piece', t); czhDragPiece = t; });
+        s.addEventListener('dragend', () => { czhDragPiece = null; });
+        pEl.appendChild(s);
+      });
+    }
     if (oppPocket.length) document.getElementById('top-captures').innerHTML += ' <span style="color:#9b59b6;font-size:13px">[' + oppPocket.map(t => sym(t, myColor === 'w' ? 'b' : 'w')).join('') + ']</span>';
   }
   document.getElementById('opening-display').textContent = currentOpening ? `Opening: ${currentOpening}` : ''; const sn = getSeasonalName(); document.getElementById('season-display').textContent = sn ? `Theme: ${sn}` : '';
@@ -671,6 +685,29 @@ boardCvs.addEventListener('click', e => {
       else { executeMove(selectedSq, sq, null); } selectedSq = null; legalDots = []; }
     else { const p2 = chess.get(sq); if (p2 && p2.color === activeColor) { selectedSq = sq; legalDots = chess.moves({ square: sq, verbose: true }).map(m => m.to); } else { selectedSq = null; legalDots = []; } }
   } drawBoard(); updateSidebar(); updateVariantUI();
+});
+boardCvs.addEventListener('dragover', e => {
+  if (currentVariant !== 'crazyhouse' || state !== 'PLAYING' || eveMode || botThinking) return;
+  e.preventDefault();
+});
+boardCvs.addEventListener('drop', e => {
+  if (currentVariant !== 'crazyhouse' || state !== 'PLAYING' || eveMode || botThinking) return;
+  e.preventDefault();
+  const pieceType = e.dataTransfer.getData('czh-piece') || czhDragPiece;
+  czhDragPiece = null;
+  if (!pieceType) return;
+  const activeColor = localMultiplayer ? chess.turn() : userColor;
+  if (chess.turn() !== activeColor) return;
+  const rect = boardCvs.getBoundingClientRect();
+  const col = Math.floor((e.clientX - rect.left) / SQ);
+  const row = Math.floor((e.clientY - rect.top) / SQ);
+  const persp = localMultiplayer ? chess.turn() : userColor;
+  const sq = colRowToSq(col, row, persp);
+  czhSelectedPocket = { color: activeColor, type: pieceType };
+  if (executeCzhDrop(pieceType, sq)) {
+    drawBoard(); updateSidebar(); updateVariantUI();
+    if (!localMultiplayer && chess.turn() !== userColor) { botThinking = true; setTimeout(requestBotMove, 150); }
+  } else { czhSelectedPocket = null; }
 });
 function showPromotion() { const row = document.getElementById('promo-row'); row.innerHTML = ''; const pieces = chess.turn() === 'w' ? ['Q','R','B','N'] : ['q','r','b','n']; for (const p of pieces) { const b = document.createElement('button'); b.className = 'promo-btn'; b.textContent = SYMBOLS[p]; b.onclick = () => { document.getElementById('promo-overlay').style.display = 'none'; if (pendingPromotion) { if (currentVariant === 'atomic') executeMoveAtomic(pendingPromotion.from, pendingPromotion.to, p.toLowerCase()); else executeMove(pendingPromotion.from, pendingPromotion.to, p.toLowerCase()); pendingPromotion = null; drawBoard(); } }; row.appendChild(b); } document.getElementById('promo-overlay').style.display = 'flex'; }
 function handlePocketClick(e) {
