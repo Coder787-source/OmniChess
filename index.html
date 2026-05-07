@@ -519,6 +519,26 @@ function checkVariantWin() {
         }
         return null;
     }
+    if (currentVariant === 'crazyhouse') {
+        const boardArr = chess.board();
+        let wk = false, bk = false;
+        for (let r = 0; r < 8; r++) {
+            for (let f = 0; f < 8; f++) {
+                const p = boardArr[r][f];
+                if (p && p.type === 'k') {
+                    if (p.color === 'w') wk = true;
+                    else bk = true;
+                }
+            }
+        }
+        if (!wk) return 'Black wins! (Crazyhouse)';
+        if (!bk) return 'White wins! (Crazyhouse)';
+        if (chess.game_over()) {
+            if (chess.in_checkmate()) return chess.turn() === 'b' ? 'White wins! (Crazyhouse)' : 'Black wins! (Crazyhouse)';
+            return 'DRAW (Crazyhouse)';
+        }
+        return null;
+    }
     if (chess.game_over()) { if (chess.in_checkmate()) return chess.turn() === 'b' ? 'White wins!' : 'Black wins!'; return 'DRAW'; }
     if (currentVariant === 'koth') {
         const files = 'abcdefgh';
