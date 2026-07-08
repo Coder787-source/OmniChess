@@ -310,4 +310,3 @@ If you choose to run the desktop version on unsupported platforms:
 
 ## 📰 Featured In
 - [Outskirts Forum](https://outskirts.altervista.org/forum/viewtopic.php?t=6053)
-- [Itch.io](https://developer123456.itch.io/omnichess)
