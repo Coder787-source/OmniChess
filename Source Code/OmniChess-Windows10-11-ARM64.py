@@ -1,0 +1,2094 @@
+# ACKNOWLEDGEMENT: This project utilizes the following intellectual property
+# and third-party libraries:
+# - 'pygame' library for the graphical user interface.
+# - 'python-chess' library for chess game rules and move validation.
+# - 'Stockfish' chess engine (https://stockfishchess.org/) for move analysis
+# and engine-driven gameplay.
+# - 'segoeuisymbol' and 'consolas' fonts for UI rendering.
+
+# PARTNER CODE SEGMENTS: This project was completed individually; no
+# partner code segments were used.
+
+import pygame
+import chess
+import chess.engine
+import chess.pgn
+import chess.variant
+import sys
+import time
+import os
+import math
+import random
+import subprocess
+import datetime
+import urllib.request
+import json
+import threading
+import io
+import ssl
+import array
+import platform
+
+def get_user_data_dir():
+    system = platform.system()
+    if system == "Windows":
+        base = os.environ.get("APPDATA", os.path.expanduser("~"))
+        path = os.path.join(base, "OmniChess")
+    elif system == "Darwin":
+        path = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "OmniChess")
+    else:
+        path = os.path.join(os.path.expanduser("~"), ".local", "share", "OmniChess")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def load_settings():
+    defaults = {"move_sounds": True, "capture_sounds": True, "show_dots": True, "check_sounds": True}
+    try:
+        with open(os.path.join(get_user_data_dir(), "settings.json"), "r") as f:
+            defaults.update(json.load(f))
+    except Exception:
+        pass
+    return defaults
+
+def save_settings(settings):
+    try:
+        with open(os.path.join(get_user_data_dir(), "settings.json"), "w") as f:
+            json.dump(settings, f, indent=2)
+    except Exception as e:
+        print(f"Settings save error: {e}")
+
+WIDTH, HEIGHT = 1200, 800
+BOARD_SIZE = 600
+SQUARE_SIZE = BOARD_SIZE // 8
+OFFSET_X, OFFSET_Y = 160, 100
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENGINE_NAME = "stockfish-windows-arm64.exe"
+ENGINE_PATH = os.path.join(BASE_DIR, ENGINE_NAME)
+
+# Abstraction: hides the complexity of bot difficulty scaling behind a simple level number.
+# Tuple: (depth, random_chance, think_time, target_elo)
+# ELO targets inspired by Chess.com's bot ladder (Martin ~250 → Magnus ~2850)
+LEVEL_CONFIG = {
+    1: (1, 0.85, 0.5,  250),
+    2: (2, 0.60, 0.7,  500),
+    3: (3, 0.35, 0.9,  800),
+    4: (4, 0.15, 1.1, 1100),
+    5: (5, 0.05, 1.3, 1450),
+    6: (7, 0.0,  1.6, 1750),
+    7: (10, 0.0, 1.8, 2200),
+    8: (15, 0.0, 2.0, 2850),
+}
+
+TAKEBACK_LIMITS = {
+    1: 8, 2: 8,
+    3: 4, 4: 4,
+    5: 2, 6: 2,
+    7: 1, 8: 1,
+}
+
+COLORS = {
+    "select": "#f7f769", "accent": "#f1c40f",
+    "sidebar": "#262421", "btn": "#45423e", "bg": "#1e1e1e",
+    "win": "#2ecc71", "loss": "#ff4757", "dot": (0, 0, 0, 80),
+    "capture_dot": (231, 76, 60, 160), "text": "#ecf0f1",
+    "check": "#e74c3c", "overlay": (0, 0, 0, 180),
+    "hint": (52, 152, 219, 180),
+    "eval_white": "#ffffff", "eval_black": "#404040",
+    "brilliant": "#1baca1", "blunder": "#ff4757", "best": "#95bb4a",
+    "variant": "#9b59b6",
+}
+
+THEMES = [
+    ("#eeeed2", "#769656"),
+    ("#dee3e6", "#8ca2ad"),
+    ("#ebecd0", "#ba5546"),
+]
+
+SYMBOLS = {
+    'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
+    'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚',
+}
+
+SEASONAL_THEMES = {
+    1:  ("#f0f0f0", "#c0a060", "New Year"),
+    2:  ("#ffe4e1", "#c0394b", "Valentine's"),
+    3:  ("#d4edda", "#2d7a3a", "St. Patrick's"),
+    4:  ("#fde8f0", "#d4789a", "Spring"),
+    5:  ("#fffde7", "#f9a825", "May Flowers"),
+    6:  ("#e3f2fd", "#1565c0", "Summer"),
+    7:  ("#ffebee", "#b71c1c", "Independence"),
+    8:  ("#e0f7fa", "#00838f", "Ocean"),
+    9:  ("#fff3e0", "#e65100", "Autumn"),
+    10: ("#1a1a1a", "#ff6600", "Halloween"),
+    11: ("#fff8e1", "#795548", "Thanksgiving"),
+    12: ("#ffebee", "#1b5e20", "Christmas"),
+}
+
+ECO_OPENINGS = {
+    "e2e4": "King's Pawn Opening",
+    "e2e4 e7e5": "Open Game",
+    "e2e4 e7e5 g1f3": "King's Knight Opening",
+    "e2e4 e7e5 g1f3 b8c6": "Three Knights",
+    "e2e4 e7e5 g1f3 b8c6 f1b5": "Ruy Lopez",
+    "e2e4 e7e5 g1f3 b8c6 f1c4": "Italian Game",
+    "e2e4 e7e5 g1f3 b8c6 f1c4 g8f6": "Two Knights Defense",
+    "e2e4 e7e5 g1f3 b8c6 d2d4": "Scotch Game",
+    "e2e4 e7e5 g1f3 b8c6 d2d4 e5d4": "Scotch Game",
+    "e2e4 e7e5 g1f3 g8f6": "Petrov's Defense",
+    "e2e4 e7e5 f2f4": "King's Gambit",
+    "e2e4 e7e5 f2f4 e5f4": "King's Gambit Accepted",
+    "e2e4 e7e5 f1c4": "Bishop's Opening",
+    "e2e4 c7c5": "Sicilian Defense",
+    "e2e4 c7c5 g1f3": "Sicilian Defense",
+    "e2e4 c7c5 g1f3 d7d6": "Sicilian Defense",
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6": "Sicilian Najdorf",
+    "e2e4 c7c5 g1f3 b8c6": "Sicilian Classical",
+    "e2e4 c7c5 g1f3 e7e6": "Sicilian Scheveningen",
+    "e2e4 c7c5 b1c3": "Sicilian Closed",
+    "e2e4 e7e6": "French Defense",
+    "e2e4 e7e6 d2d4 d7d5": "French Defense",
+    "e2e4 e7e6 d2d4 d7d5 b1c3": "French Classical",
+    "e2e4 e7e6 d2d4 d7d5 e4e5": "French Advance",
+    "e2e4 c7c6": "Caro-Kann Defense",
+    "e2e4 c7c6 d2d4 d7d5": "Caro-Kann Defense",
+    "e2e4 c7c6 d2d4 d7d5 b1c3": "Caro-Kann Classical",
+    "e2e4 c7c6 d2d4 d7d5 e4e5": "Caro-Kann Advance",
+    "e2e4 d7d5": "Scandinavian Defense",
+    "e2e4 d7d5 e4d5": "Scandinavian Defense",
+    "e2e4 g7g6": "Modern Defense",
+    "e2e4 d7d6": "Pirc Defense",
+    "e2e4 d7d6 d2d4 g8f6": "Pirc Defense",
+    "e2e4 g8f6": "Alekhine's Defense",
+    "e2e4 b7b6": "Owen's Defense",
+    "d2d4": "Queen's Pawn Opening",
+    "d2d4 d7d5": "Queen's Pawn Game",
+    "d2d4 d7d5 c2c4": "Queen's Gambit",
+    "d2d4 d7d5 c2c4 e7e6": "Queen's Gambit Declined",
+    "d2d4 d7d5 c2c4 d5c4": "Queen's Gambit Accepted",
+    "d2d4 d7d5 c2c4 c7c6": "Slav Defense",
+    "d2d4 d7d5 c2c4 c7c6 g1f3 g8f6": "Slav Defense",
+    "d2d4 g8f6": "Indian Defense",
+    "d2d4 g8f6 c2c4": "Indian Defense",
+    "d2d4 g8f6 c2c4 g7g6": "King's Indian Defense",
+    "d2d4 g8f6 c2c4 g7g6 b1c3": "King's Indian Defense",
+    "d2d4 g8f6 c2c4 e7e6 b1c3 f8b4": "Nimzo-Indian Defense",
+    "d2d4 g8f6 c2c4 e7e6 g1f3 b7b6": "Queen's Indian Defense",
+    "d2d4 g8f6 c2c4 c7c5": "Benoni Defense",
+    "d2d4 g8f6 c2c4 c7c5 d4d5": "Benoni Defense",
+    "d2d4 f7f5": "Dutch Defense",
+    "d2d4 f7f5 c2c4": "Dutch Defense",
+    "c2c4": "English Opening",
+    "c2c4 e7e5": "English Opening",
+    "c2c4 g8f6": "English Opening",
+    "g1f3": "Reti Opening",
+    "g1f3 d7d5": "Reti Opening",
+    "g1f3 d7d5 c2c4": "Reti Opening",
+    "g2g3": "King's Fianchetto",
+    "b2b3": "Larsen's Opening",
+    "b2b4": "Polish Opening",
+    "f2f4": "Bird's Opening",
+}
+
+PUZZLE_DIFFICULTIES   = ["easiest", "easier", "normal", "harder", "hardest"]
+PUZZLE_FAST_THRESHOLD = 20
+PUZZLE_SLOW_THRESHOLD = 60
+
+# ── Variant definitions ───────────────────────────────────────────────────────
+# Each entry: display name, board class or None for standard, description
+VARIANTS = {
+    "standard":    ("Standard",         None,                              "Classic chess"),
+    "blindfold":   ("Blindfold",        None,                              "Pieces are hidden"),
+    "960":         ("Fischer Random",   chess.Board,                       "Randomised back rank"),
+    "koth":        ("King of the Hill", chess.Board,                       "First king to centre wins"),
+    "3check":      ("Three-check",      chess.variant.ThreeCheckBoard,     "Win by giving 3 checks"),
+    "atomic":      ("Atomic",           chess.variant.AtomicBoard,         "Captures explode nearby pieces"),
+    "antichess":   ("Antichess",        chess.variant.AntichessBoard,      "Lose all your pieces to win"),
+    "crazyhouse":  ("Crazyhouse",       chess.variant.CrazyhouseBoard,     "Drop captured pieces back"),
+    "fog":         ("Fog of War",       None,                              "Only see squares your pieces can reach"),
+    "racingkings": ("Racing Kings",     chess.variant.RacingKingsBoard,    "Race your king to rank 8"),
+    "horde":       ("Horde",            chess.variant.HordeBoard,          "White pawns swarm vs black pieces"),
+}
+VARIANT_KEYS = list(VARIANTS.keys())   # ordered list for cycling
+
+# Centre squares used by King of the Hill win condition
+KOTH_CENTRE = {chess.E4, chess.D4, chess.E5, chess.D5}
+
+
+class ChessTitan:
+    def __init__(self):
+        pygame.init()
+        pygame.mixer.init(frequency=22050, size=-16, channels=1)
+        self.sound_move    = self._generate_beep(440,  0.1)
+        self.sound_capture = self._generate_beep(880, 0.15)
+        self.sound_check   = self._generate_beep(660, 0.12)
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.is_fullscreen = False
+        pygame.display.set_caption("OmniChess")
+        self.clock = pygame.time.Clock()
+        self.engine = None
+
+        print("\n" + "=" * 40)
+        print("OmniChess:Entertainment Studios")
+        print("=" * 40)
+        try:
+            self.engine = chess.engine.SimpleEngine.popen_uci(
+                ENGINE_PATH,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            identity = self.engine.id
+            print(f"ENGINE: {identity.get('name', 'Stockfish')}")
+            print(f"AUTHOR: {identity.get('author', 'Unknown')}")
+            print("STATUS: CORE CONNECTED & OPERATIONAL")
+        except Exception:
+            print(f"STATUS: ENGINE NOT FOUND at {ENGINE_PATH}")
+            print("=" * 40 + "\n")
+
+        try:
+            self.font_piece = pygame.font.SysFont("segoeuisymbol", 72)
+            test_render = self.font_piece.render("♔", True, (0, 0, 0))
+            if test_render.get_width() < 10:
+                raise Exception("Font missing chess symbols")
+        except Exception:
+            self.font_piece = pygame.font.SysFont("segoeuisymbol,segoeui,arial", 72)
+        self.font_captured = pygame.font.SysFont("segoeuisymbol,segoeui,arial", 30)
+        self.font_ui       = pygame.font.SysFont("dejavusans,liberationsans,freesans", 20, bold=True)
+        self.font_tiny     = pygame.font.SysFont("dejavusans,liberationsans,freesans", 14, bold=True)
+        self.font_credit   = pygame.font.SysFont("dejavusansmono,liberationmono,freemono", 12, bold=True)
+        self.font_big      = pygame.font.SysFont("dejavusans,liberationsans,freesans", 45, bold=True)
+
+        self.state           = "MENU"
+        self.mode            = "PRESET"
+        self.user_color      = chess.WHITE
+        self.current_level   = 1
+        self.custom_elo      = 1500
+        self.timer_setting   = 600
+        self.increment_setting = 0       # seconds added per move (0 = no increment)
+        self.current_theme_idx = 0
+        self.use_seasonal    = True
+        self.current_month   = datetime.datetime.now().month
+
+        self.eval_score      = 0.0
+        self.prev_eval       = 0.0
+        self.bot_thinking    = False
+        self.takeback_requested = False
+        self.local_multiplayer  = False
+        self.current_opening    = ""
+
+        self.offset_x  = OFFSET_X
+        self.offset_y  = OFFSET_Y
+        self.sidebar_x = 800
+        self.screen_w  = WIDTH
+        self.screen_h  = HEIGHT
+
+        # ── Engine vs Engine state ────────────────────────────────────────────
+        self.eve_white_level = 1   # White bot level (1–8)
+        self.eve_black_level = 8   # Black bot level (1–8)
+        self.eve_mode        = False  # True when engine-vs-engine is running
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── Resign / Draw state ───────────────────────────────────────────────
+        self.draw_offered        = False   # True when user has offered a draw
+        self.draw_offer_pending  = False
+        self.draw_offered_by     = None
+        self.resigned            = False
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── Settings overlay state ────────────────────────────────────────────
+        self.settings_open = False
+        _s = load_settings()
+        self.setting_move_sounds    = _s["move_sounds"]
+        self.setting_capture_sounds = _s["capture_sounds"]
+        self.setting_show_dots      = _s["show_dots"]
+        self.setting_check_sounds   = _s["check_sounds"]
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── Variant state ─────────────────────────────────────────────────────
+        self.current_variant = "standard"   # key into VARIANTS dict
+        # Three-check counter: how many checks each side has delivered
+        self.checks_by_white = 0
+        self.checks_by_black = 0
+        self.czh_drag_type   = None   # piece type being dragged from Crazyhouse pocket
+        self.czh_drag_color  = None
+        self.czh_drag_pos    = (0, 0)
+        self._czh_pocket_rects = []   # [(pygame.Rect, piece_type, color), ...]
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── PGN import state ─────────────────────────────────────────────────
+        self.pgn_moves     = []     # list of chess.Move from loaded PGN
+        self.pgn_replay_idx = 0     # current position in replay
+        self.pgn_replay_board = None  # board used for replay stepping
+        self.pgn_mode      = None   # None | "replay" | "resume"
+        self.pgn_load_error = ""
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── Puzzle state ──────────────────────────────────────────────────────
+        self.puzzle_board        = None
+        self.puzzle_solution     = []
+        self.puzzle_move_idx     = 0
+        self.puzzle_status       = ""
+        self.puzzle_selected_sq  = None
+        self.puzzle_legal_dots   = []
+        self.puzzle_loading      = False
+        self.puzzle_load_error   = ""
+        self.puzzle_rating       = ""
+        self.puzzle_themes_str   = ""
+        self.puzzle_difficulty   = "normal"
+        self.puzzle_player_color = chess.WHITE
+        self.puzzle_adaptive_idx = 2
+        self.puzzle_start_time   = None
+        self.puzzle_last_feedback = ""
+        # ─────────────────────────────────────────────────────────────────────
+
+        self.reset_game()
+
+    # ── Audio ─────────────────────────────────────────────────────────────────
+
+    def _generate_beep(self, frequency, duration):
+        sample_rate = 22050
+        n_samples = int(sample_rate * duration)
+        buf = array.array('h', [0] * n_samples)
+        for i in range(n_samples):
+            t = float(i) / sample_rate
+            val = 32767 if (int(2 * frequency * t) % 2 == 0) else -32767
+            buf[i] = val
+        return pygame.mixer.Sound(buffer=buf)
+
+    def play_move_sound(self, is_capture):
+        if is_capture:
+            if self.setting_capture_sounds:
+                self.sound_capture.play()
+        else:
+            if self.setting_move_sounds:
+                self.sound_move.play()
+
+    # ── Variant helpers ───────────────────────────────────────────────────────
+
+    def make_board(self):
+        """Return a fresh board for the current variant."""
+        key = self.current_variant
+        if key == "960":
+            return chess.Board.from_chess960_pos(random.randint(0, 959))
+        _, board_cls, _ = VARIANTS[key]
+        if board_cls is None:
+            return chess.Board()
+        return board_cls()
+
+    def check_variant_win(self):
+        """
+        Returns (game_over, message) for the current variant's special win conditions.
+        Checks standard game_over first, then variant-specific rules.
+        """
+        b = self.board
+
+        # Antichess: handle all game-over cases before the generic path
+        if self.current_variant == "antichess" and b.is_game_over():
+            outcome = b.outcome()
+            if outcome is not None and outcome.winner is not None:
+                winner = "White wins! (Antichess)" if outcome.winner == chess.WHITE else "Black wins! (Antichess)"
+                return True, winner
+            # No legal moves (stalemate) — the side to move wins in antichess
+            if not list(b.legal_moves):
+                winner = "White wins! (Antichess)" if b.turn == chess.WHITE else "Black wins! (Antichess)"
+                return True, winner
+            return True, "DRAW (Antichess)"
+
+        # Atomic: king explosion — side whose king survives wins
+        if self.current_variant == "atomic" and b.is_game_over():
+            outcome = b.outcome()
+            if outcome is not None and outcome.winner is not None:
+                winner = "White wins! (Atomic)" if outcome.winner == chess.WHITE else "Black wins! (Atomic)"
+                return True, winner
+            if b.is_checkmate():
+                winner = "White wins! (Atomic)" if b.turn == chess.BLACK else "Black wins! (Atomic)"
+                return True, winner
+            return True, "DRAW (Atomic)"
+
+        # Racing Kings — first king to rank 8 wins (must precede generic check)
+        if self.current_variant == "racingkings" and b.is_game_over():
+            outcome = b.outcome()
+            if outcome is not None and outcome.winner is not None:
+                winner = "White wins! (Racing Kings)" if outcome.winner == chess.WHITE else "Black wins! (Racing Kings)"
+                return True, winner
+            return True, "DRAW (Racing Kings)"
+
+        # Horde — black captures all white pawns, or white checkmates black (must precede generic check)
+        if self.current_variant == "horde" and b.is_game_over():
+            outcome = b.outcome()
+            if outcome is not None and outcome.winner is not None:
+                winner = "White wins! (Horde)" if outcome.winner == chess.WHITE else "Black wins! (Horde)"
+                return True, winner
+            return True, "DRAW (Horde)"
+
+        # Crazyhouse: end immediately if either king has been captured (king missing from board)
+        if self.current_variant == "crazyhouse":
+            if b.king(chess.WHITE) is None:
+                return True, "Black wins! (Crazyhouse)"
+            if b.king(chess.BLACK) is None:
+                return True, "White wins! (Crazyhouse)"
+            if b.is_game_over():
+                outcome = b.outcome()
+                if outcome is not None and outcome.winner is not None:
+                    winner = "White wins! (Crazyhouse)" if outcome.winner == chess.WHITE else "Black wins! (Crazyhouse)"
+                    return True, winner
+                return True, "DRAW (Crazyhouse)"
+
+        # Standard game over (works for all python-chess variant boards too)
+        if b.is_game_over():
+            if b.is_checkmate():
+                winner = "White wins!" if b.turn == chess.BLACK else "Black wins!"
+                return True, winner
+            return True, "DRAW"
+
+        # King of the Hill — king on centre square wins
+        if self.current_variant == "koth":
+            for color, squares, msg in [
+                (chess.WHITE, KOTH_CENTRE, "White wins! (King of the Hill)"),
+                (chess.BLACK, KOTH_CENTRE, "Black wins! (King of the Hill)"),
+            ]:
+                king_sq = b.king(color)
+                if king_sq in squares:
+                    return True, msg
+
+        # Three-check — 3 checks delivered wins
+        if self.current_variant == "3check" and isinstance(b, chess.variant.ThreeCheckBoard):
+            # remaining_checks starts at 3 and counts down
+            if b.remaining_checks[chess.WHITE] <= 0:
+                return True, "White wins! (Three-check)"
+            if b.remaining_checks[chess.BLACK] <= 0:
+                return True, "Black wins! (Three-check)"
+
+        return False, ""
+
+    def get_check_count_str(self):
+        """Returns check count display string for Three-check variant."""
+        if self.current_variant != "3check" or not isinstance(self.board, chess.variant.ThreeCheckBoard):
+            return ""
+        w_given = 3 - self.board.remaining_checks[chess.WHITE]
+        b_given = 3 - self.board.remaining_checks[chess.BLACK]
+        return f"+{w_given} / +{b_given}"
+
+    def get_fog_visible_squares(self, board, color):
+        """Returns the set of squares visible to the given color in Fog of War.
+        A square is visible if a friendly piece occupies it or can move/attack it."""
+        visible = set()
+        for sq in chess.SQUARES:
+            piece = board.piece_at(sq)
+            if piece and piece.color == color:
+                visible.add(sq)
+                visible |= set(board.attacks(sq))
+        return visible
+
+    # ── PGN helpers ───────────────────────────────────────────────────────────
+
+    def load_pgn_file(self):
+        """
+        Opens a file dialog (via tkinter) and loads a PGN.
+        Stores moves in self.pgn_moves.
+        Returns True on success, False on failure.
+        """
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            path = filedialog.askopenfilename(
+                title="Open PGN file",
+                filetypes=[("PGN files", "*.pgn"), ("All files", "*.*")],
+            )
+            root.destroy()
+            if not path:
+                return False
+            with open(path, "r") as f:
+                pgn_text = f.read()
+            pgn_io = io.StringIO(pgn_text)
+            game = chess.pgn.read_game(pgn_io)
+            if game is None:
+                self.pgn_load_error = "Could not parse PGN file."
+                return False
+            self.pgn_moves = list(game.mainline_moves())
+            self.pgn_load_error = ""
+            return True
+        except Exception as e:
+            self.pgn_load_error = f"PGN load error: {e}"
+            return False
+
+    def start_pgn_replay(self):
+        """Set up replay mode — step through loaded PGN move by move."""
+        self.pgn_replay_board = chess.Board()
+        self.pgn_replay_idx   = 0
+        self.state = "PGN_REPLAY"
+        self.lock_fullscreen()
+
+    def start_pgn_resume(self):
+        """
+        Resume mode — replay all PGN moves silently onto the board,
+        then hand control to the player to continue.
+        """
+        self.reset_game()
+        for move in self.pgn_moves:
+            self.board.push(move)
+            self.move_history.append(self.board.san(move) if False else
+                                     chess.Board("".join([])).san(move)
+                                     if False else move.uci())
+        # Rebuild move history properly
+        temp = chess.Board()
+        self.move_history = []
+        for move in self.pgn_moves:
+            self.move_history.append(temp.san(move))
+            temp.push(move)
+        self.board = temp
+        self.pgn_mode = "resume"
+        self.local_multiplayer = False
+        self.state = "PLAYING"
+        self.lock_fullscreen()
+
+    def pgn_replay_step(self, direction):
+        """
+        Step forward (+1) or backward (-1) through the PGN replay.
+        direction: +1 = next move, -1 = previous move
+        """
+        if self.pgn_replay_board is None:
+            return
+        if direction == 1 and self.pgn_replay_idx < len(self.pgn_moves):
+            move = self.pgn_moves[self.pgn_replay_idx]
+            is_cap = bool(self.pgn_replay_board.piece_at(move.to_square))
+            self.play_move_sound(is_cap)
+            self.pgn_replay_board.push(move)
+            self.pgn_replay_idx += 1
+        elif direction == -1 and self.pgn_replay_idx > 0:
+            self.pgn_replay_board.pop()
+            self.pgn_replay_idx -= 1
+
+    # ── Puzzle helpers ────────────────────────────────────────────────────────
+
+    def fetch_puzzle(self):
+        self.puzzle_loading      = True
+        self.puzzle_load_error   = ""
+        self.puzzle_board        = None
+        self.puzzle_solution     = []
+        self.puzzle_move_idx     = 0
+        self.puzzle_status       = ""
+        self.puzzle_selected_sq  = None
+        self.puzzle_legal_dots   = []
+        self.puzzle_rating       = ""
+        self.puzzle_themes_str   = ""
+        self.puzzle_start_time   = None
+        self.puzzle_difficulty   = PUZZLE_DIFFICULTIES[self.puzzle_adaptive_idx]
+
+        def _fetch():
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode    = ssl.CERT_NONE
+                url = f"https://lichess.org/api/puzzle/next?difficulty={self.puzzle_difficulty}"
+                req = urllib.request.Request(url, headers={"Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=8, context=ctx) as resp:
+                    data = json.loads(resp.read().decode())
+                puzzle   = data["puzzle"]
+                game_pgn = data["game"]["pgn"]
+                pgn_io   = io.StringIO(game_pgn)
+                pgn_game = chess.pgn.read_game(pgn_io)
+                board    = pgn_game.board()
+                for m in pgn_game.mainline_moves():
+                    board.push(m)
+                self.puzzle_board    = board.copy()
+                self.puzzle_solution = [chess.Move.from_uci(u) for u in puzzle["solution"]]
+                self.puzzle_board.push(self.puzzle_solution[0])
+                self.puzzle_move_idx     = 1
+                self.puzzle_player_color = self.puzzle_board.turn
+                self.puzzle_rating       = str(puzzle.get("rating", "?"))
+                self.puzzle_themes_str   = ", ".join(puzzle.get("themes", [])[:3])
+                self.puzzle_loading      = False
+                self.puzzle_start_time   = time.time()
+            except Exception as e:
+                self.puzzle_load_error = f"Could not load puzzle: {e}"
+                self.puzzle_loading    = False
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def adapt_puzzle_difficulty(self, solved, elapsed):
+        if not solved:
+            self.puzzle_adaptive_idx = max(0, self.puzzle_adaptive_idx - 1)
+            self.puzzle_last_feedback = f"Too hard — dropping to {PUZZLE_DIFFICULTIES[self.puzzle_adaptive_idx].upper()}"
+        elif elapsed < PUZZLE_FAST_THRESHOLD:
+            self.puzzle_adaptive_idx = min(4, self.puzzle_adaptive_idx + 1)
+            self.puzzle_last_feedback = f"Solved in {int(elapsed)}s — bumping to {PUZZLE_DIFFICULTIES[self.puzzle_adaptive_idx].upper()}"
+        elif elapsed > PUZZLE_SLOW_THRESHOLD:
+            self.puzzle_adaptive_idx = max(0, self.puzzle_adaptive_idx - 1)
+            self.puzzle_last_feedback = f"Solved in {int(elapsed)}s — dropping to {PUZZLE_DIFFICULTIES[self.puzzle_adaptive_idx].upper()}"
+        else:
+            self.puzzle_last_feedback = f"Solved in {int(elapsed)}s — staying at {PUZZLE_DIFFICULTIES[self.puzzle_adaptive_idx].upper()}"
+
+    # ── Screen transitions ────────────────────────────────────────────────────
+
+    def fade_transition(self):
+        fade = pygame.Surface(self.screen.get_size())
+        fade.fill((0, 0, 0))
+        for alpha in range(0, 256, 25):
+            fade.set_alpha(alpha)
+            self.screen.blit(fade, (0, 0))
+            pygame.display.flip()
+            pygame.time.delay(15)
+
+    def lock_fullscreen(self):
+        self.fade_transition()
+        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self.is_fullscreen = True
+        sw, sh = self.screen.get_size()
+        total_width   = 60 + BOARD_SIZE + 40 + 350
+        left_margin   = (sw - total_width) // 2
+        self.offset_x = left_margin + 60
+        self.offset_y = (sh - BOARD_SIZE) // 2
+        self.sidebar_x = self.offset_x + BOARD_SIZE + 40
+        self.screen_w  = sw
+        self.screen_h  = sh
+
+    def unlock_windowed(self):
+        self.fade_transition()
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.is_fullscreen = False
+        self.screen_w      = WIDTH
+        self.screen_h      = HEIGHT
+        total_width        = 60 + BOARD_SIZE + 40 + 350
+        left_margin        = (self.screen_w - total_width) // 2
+        self.offset_x      = left_margin + 60
+        self.offset_y      = (self.screen_h - BOARD_SIZE) // 2
+        self.sidebar_x     = self.offset_x + BOARD_SIZE + 40
+
+    # ── Theme helpers ─────────────────────────────────────────────────────────
+
+    def get_active_theme(self):
+        if self.use_seasonal and self.current_month in SEASONAL_THEMES:
+            light, dark, _ = SEASONAL_THEMES[self.current_month]
+            return (light, dark)
+        return THEMES[self.current_theme_idx]
+
+    def get_seasonal_name(self):
+        if self.use_seasonal and self.current_month in SEASONAL_THEMES:
+            return SEASONAL_THEMES[self.current_month][2]
+        return ""
+
+    def get_takeback_limit(self):
+        if self.mode == "ELO":
+            return 0
+        return TAKEBACK_LIMITS.get(self.current_level, 1)
+
+    def draw_credits(self):
+        credit_text = "ENGINE INTEGRATION BY STOCKFISH v18"
+        ver_surf = self.font_tiny.render("v2.2", True, "#ffffff")
+        self.screen.blit(ver_surf, (10, self.screen_h - ver_surf.get_height() - 8))
+        cred_surf = self.font_credit.render(credit_text, True, "#555555")
+        self.screen.blit(cred_surf, (self.screen_w // 2 - cred_surf.get_width() // 2, 5))
+
+    # ── Game reset ────────────────────────────────────────────────────────────
+
+    def reset_game(self):
+        self.board              = self.make_board()
+        self.selected_sq        = None
+        self.legal_dots         = []
+        self.captured_by_white  = []
+        self.captured_by_black  = []
+        self.move_history       = []
+        self.board_history      = []
+        self.white_time         = float(self.timer_setting)
+        self.black_time         = float(self.timer_setting)
+        self.last_update        = time.time()
+        self.hints_used         = 0
+        self.hint_move          = None
+        self.pending_promotion  = None
+        self.eval_score         = 0.0
+        self.prev_eval          = 0.0
+        self.bot_thinking       = False
+        self.takebacks_used     = 0
+        self.takeback_requested = False
+        self.current_opening    = ""
+        self.checks_by_white    = 0
+        self.checks_by_black    = 0
+        self.pgn_mode           = None
+        self.eve_mode           = False
+        self.draw_offered       = False
+        self.draw_offer_pending = False
+        self.draw_offered_by    = None
+        self.resigned           = False
+        self.settings_open      = False
+        self.czh_drag_type      = None
+        self.czh_drag_color     = None
+        self.czh_drag_pos       = (0, 0)
+        self._czh_pocket_rects  = []
+        if self.engine:
+            self.engine.configure({"UCI_LimitStrength": False})
+
+    # ── Takeback ──────────────────────────────────────────────────────────────
+
+    def do_takeback(self):
+        limit = self.get_takeback_limit()
+        if self.takebacks_used >= limit:
+            return
+        if len(self.board_history) == 0:
+            return
+        self.takeback_requested = True
+        self.bot_thinking       = False
+        self.pending_bot_move   = None
+        steps = min(2, len(self.board_history))
+        for _ in range(steps):
+            if self.board_history:
+                self.board_history.pop()
+        if self.board_history:
+            fen, cap_w, cap_b, hist, chk_w, chk_b = self.board_history[-1]
+            self.board              = self.make_board_from_fen(fen)
+            self.captured_by_white  = list(cap_w)
+            self.captured_by_black  = list(cap_b)
+            self.move_history       = list(hist)
+            self.checks_by_white    = chk_w
+            self.checks_by_black    = chk_b
+        else:
+            self.board             = self.make_board()
+            self.captured_by_white = []
+            self.captured_by_black = []
+            self.move_history      = []
+            self.checks_by_white   = 0
+            self.checks_by_black   = 0
+        self.selected_sq  = None
+        self.legal_dots   = []
+        self.hint_move    = None
+        self.takebacks_used += 1
+        if self.engine:
+            try:
+                info = self.engine.analyse(self.board, chess.engine.Limit(time=0.1))
+                score = info["score"].white()
+                self.eval_score = (score.score() / 100.0) if not score.is_mate() else (10.0 if score.mate() > 0 else -10.0)
+            except Exception:
+                pass
+
+    def make_board_from_fen(self, fen):
+        """Restore correct board type from FEN for current variant."""
+        key = self.current_variant
+        _, board_cls, _ = VARIANTS[key]
+        if key == "960" or board_cls is None:
+            return chess.Board(fen)
+        return board_cls(fen)
+
+    # ── PGN download ─────────────────────────────────────────────────────────
+
+    def download_pgn(self):
+        game = chess.pgn.Game()
+        game.headers["White"]   = "Player" if self.user_color == chess.WHITE else "Stockfish"
+        game.headers["Black"]   = "Player" if self.user_color == chess.BLACK else "Stockfish"
+        game.headers["Variant"] = VARIANTS[self.current_variant][0]
+        node       = game
+        temp_board = chess.Board()
+        for move_san in self.move_history:
+            try:
+                move = temp_board.parse_san(move_san)
+                node = node.add_main_variation(move)
+                temp_board.push(move)
+            except Exception:
+                break
+        filename = os.path.join(get_user_data_dir(), f"game_{int(time.time())}.pgn")
+        with open(filename, "w") as f:
+            f.write(str(game))
+        print(f"Saved: {filename}")
+        # Show save location to user via pygame message box
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, f"PGN saved to:\n{filename}", "OmniChess — PGN Saved", 0x40)
+        except Exception:
+            pass  # non-Windows platforms just use the print
+
+    # ── Eval bar ──────────────────────────────────────────────────────────────
+
+    def draw_eval_bar(self):
+        bar_w = 35
+        bar_h = BOARD_SIZE
+        bar_x = self.offset_x - (bar_w + 25)
+        bar_y = self.offset_y
+        pygame.draw.rect(self.screen, COLORS["eval_black"], (bar_x, bar_y, bar_w, bar_h))
+        display_eval = max(-10, min(10, self.eval_score))
+        ratio   = 1 / (1 + math.exp(-0.4 * display_eval))
+        white_h = ratio * bar_h
+        if self.user_color == chess.WHITE:
+            pygame.draw.rect(self.screen, COLORS["eval_white"],
+                             (bar_x, bar_y + (bar_h - white_h), bar_w, white_h))
+        else:
+            pygame.draw.rect(self.screen, COLORS["eval_white"],
+                             (bar_x, bar_y, bar_w, white_h))
+        score_str  = f"{self.eval_score:+.1f}" if self.user_color == chess.WHITE else f"{-self.eval_score:+.1f}"
+        score_surf = self.font_tiny.render(score_str, True, COLORS["accent"])
+        self.screen.blit(score_surf, (bar_x - 5, bar_y - 25))
+
+    # ── Bot move ─────────────────────────────────────────────────────────────
+
+    def get_bot_move(self):
+        depth, random_chance, think_time, target_elo = LEVEL_CONFIG[self.current_level]
+        legal = list(self.board.legal_moves)
+        if not legal:
+            return None
+        # Antichess/Atomic/Crazyhouse: Stockfish does not support these variants — use random legal move
+        if self.current_variant in ("antichess", "atomic", "crazyhouse", "racingkings", "horde"):
+            return random.choice(legal)
+        if random.random() < random_chance:
+            return random.choice(legal)
+        try:
+            self.engine.configure({"UCI_LimitStrength": True,
+                                   "UCI_Elo": max(100, min(3190, target_elo))})
+            res = self.engine.play(self.board, chess.engine.Limit(time=think_time))
+            self.engine.configure({"UCI_LimitStrength": False})
+            return res.move
+        except Exception:
+            self.engine.configure({"UCI_LimitStrength": False})
+            return random.choice(legal) if legal else None
+
+    def get_bot_move_for_level(self, level):
+        """Like get_bot_move but uses a specific level — used by engine vs engine."""
+        depth, random_chance, think_time, target_elo = LEVEL_CONFIG[level]
+        legal = list(self.board.legal_moves)
+        if not legal:
+            return None
+        if self.current_variant in ("antichess", "atomic", "crazyhouse", "racingkings", "horde"):
+            return random.choice(legal)
+        if random.random() < random_chance:
+            return random.choice(legal)
+        try:
+            self.engine.configure({"UCI_LimitStrength": True,
+                                   "UCI_Elo": max(100, min(3190, target_elo))})
+            res = self.engine.play(self.board, chess.engine.Limit(time=think_time))
+            self.engine.configure({"UCI_LimitStrength": False})
+            return res.move
+        except Exception:
+            self.engine.configure({"UCI_LimitStrength": False})
+            return random.choice(legal) if legal else None
+
+    # ── Board drawing ─────────────────────────────────────────────────────────
+
+    def draw_board_surface(self, board, selected_sq, legal_dots, hint_move, user_color, local_mp=False, fog_color=None):
+        """
+        Shared board renderer used by PLAYING, PGN_REPLAY, and PUZZLE.
+        fog_color: if set, applies Fog of War visibility from that color's perspective.
+        """
+        theme       = self.get_active_theme()
+        perspective = (board.turn if local_mp else user_color)
+        fog_visible = self.get_fog_visible_squares(board, fog_color) if fog_color is not None else None
+
+        for sq in chess.SQUARES:
+            r, c = sq // 8, sq % 8
+            dr, dc = (7 - r, c) if perspective == chess.WHITE else (r, 7 - c)
+            x = dc * SQUARE_SIZE + self.offset_x
+            y = dr * SQUARE_SIZE + self.offset_y
+            col = theme[0] if (dr + dc) % 2 == 0 else theme[1]
+
+            piece = board.piece_at(sq)
+            sq_visible = fog_visible is None or sq in fog_visible
+            if piece and piece.piece_type == chess.KING and board.is_check() and piece.color == board.turn:
+                col = COLORS["check"]
+            if selected_sq == sq:
+                col = COLORS["select"]
+            if hint_move and sq in (hint_move.from_square, hint_move.to_square):
+                col = COLORS["hint"]
+
+            pygame.draw.rect(self.screen, col, (x, y, SQUARE_SIZE, SQUARE_SIZE))
+
+            if piece and self.current_variant != "blindfold":
+                if not sq_visible:
+                    pass  # enemy piece hidden in fog — do not render
+                else:
+                    sym     = SYMBOLS[piece.symbol()]
+                    p_color = "#ffffff" if piece.color == chess.WHITE else "#000000"
+                    if piece.color == chess.WHITE:
+                        outline = self.font_piece.render(sym, True, "#333333")
+                        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                            self.screen.blit(outline, (x + 5 + dx, y - 10 + dy))
+                    self.screen.blit(
+                        self.font_piece.render(sym, True, p_color),
+                        (x + 5, y - 10),
+                    )
+
+            # Dark fog overlay on squares outside the player's vision
+            if not sq_visible:
+                fog_surf = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
+                fog_surf.fill((0, 0, 0, 155))
+                self.screen.blit(fog_surf, (x, y))
+
+        # Legal move dots
+        _dots_to_draw = legal_dots if self.setting_show_dots else []
+        for d_sq in _dots_to_draw:
+            r, c = d_sq // 8, d_sq % 8
+            dr, dc = (7 - r, c) if perspective == chess.WHITE else (r, 7 - c)
+            dot_x = dc * SQUARE_SIZE + self.offset_x + SQUARE_SIZE // 2
+            dot_y = dr * SQUARE_SIZE + self.offset_y + SQUARE_SIZE // 2
+            s = pygame.Surface((30, 30), pygame.SRCALPHA)
+            pygame.draw.circle(
+                s,
+                COLORS["capture_dot"] if board.piece_at(d_sq) else COLORS["dot"],
+                (15, 15), 10,
+            )
+            self.screen.blit(s, (dot_x - 15, dot_y - 15))
+
+        # Board coordinates
+        files = "abcdefgh"
+        for i in range(8):
+            file_char = files[i] if user_color == chess.WHITE else files[7 - i]
+            fx = self.offset_x + i * SQUARE_SIZE + SQUARE_SIZE // 2 - 4
+            fy = self.offset_y + BOARD_SIZE + 4
+            self.screen.blit(self.font_tiny.render(file_char, True, "#888888"), (fx, fy))
+            rank_num = str(8 - i) if user_color == chess.WHITE else str(i + 1)
+            self.screen.blit(
+                self.font_tiny.render(rank_num, True, "#888888"),
+                (self.offset_x - 14, self.offset_y + i * SQUARE_SIZE + SQUARE_SIZE // 2 - 6),
+            )
+
+    def draw_board(self):
+        fog_color = None
+        if self.current_variant == "fog" and not self.eve_mode:
+            # Local MP: each player sees their own fog; vs bot: human always sees their color
+            fog_color = self.board.turn if self.local_multiplayer else self.user_color
+        self.draw_board_surface(
+            self.board, self.selected_sq, self.legal_dots,
+            self.hint_move, self.user_color, self.local_multiplayer,
+            fog_color=fog_color,
+        )
+
+    # ── Execute move ──────────────────────────────────────────────────────────
+
+    def execute_move(self, move):
+        self.prev_eval = self.eval_score
+        san = self.board.san(move)
+        # Drop moves have no capture at destination
+        cap = None if move.drop else self.board.piece_at(move.to_square)
+        self.play_move_sound(is_capture=bool(cap))
+        if cap:
+            if self.board.turn == chess.WHITE:
+                self.captured_by_white.append(cap.symbol())
+            else:
+                self.captured_by_black.append(cap.symbol())
+
+        # Save snapshot (now includes check counters for 3check takeback)
+        self.board_history.append((
+            self.board.fen(),
+            list(self.captured_by_white),
+            list(self.captured_by_black),
+            list(self.move_history),
+            self.checks_by_white,
+            self.checks_by_black,
+        ))
+
+        self.board.push(move)
+        if self.board.is_check() and self.setting_check_sounds:
+            self.sound_check.play()
+        self.move_history.append(san)
+        self.hint_move = None
+
+        # Apply increment — add time to the side that just moved
+        if self.increment_setting > 0:
+            if self.board.turn == chess.BLACK:   # white just moved
+                self.white_time += self.increment_setting
+            else:                                # black just moved
+                self.black_time += self.increment_setting
+
+        # Opening detection
+        name  = ""
+        parts = []
+        for m in self.board.move_stack:
+            parts.append(m.uci())
+            key = " ".join(parts)
+            if key in ECO_OPENINGS:
+                name = ECO_OPENINGS[key]
+        self.current_opening = name
+
+        if self.engine:
+            try:
+                info = self.engine.analyse(self.board, chess.engine.Limit(time=0.1))
+                score = info["score"].white()
+                self.eval_score = (score.score() / 100.0) if not score.is_mate() else (10.0 if score.mate() > 0 else -10.0)
+            except Exception:
+                pass
+
+    # ── Click handler ─────────────────────────────────────────────────────────
+
+    def handle_click(self, pos):
+        # ── MENU ──────────────────────────────────────────────────────────────
+        if self.state == "MENU":
+            # Settings overlay clicks
+            if self.settings_open:
+                ox = self.screen_w // 2 - 200
+                oy = self.screen_h // 2 - 140
+                for row_i, attr in enumerate(["setting_move_sounds", "setting_capture_sounds", "setting_show_dots", "setting_check_sounds"]):
+                    ry = oy + 65 + row_i * 55
+                    if pygame.Rect(ox + 280, ry, 90, 36).collidepoint(pos):
+                        setattr(self, attr, not getattr(self, attr))
+                        save_settings({"move_sounds": self.setting_move_sounds,
+                                       "capture_sounds": self.setting_capture_sounds,
+                                       "show_dots": self.setting_show_dots,
+                                       "check_sounds": self.setting_check_sounds})
+                if pygame.Rect(ox + 150, oy + 283, 100, 36).collidepoint(pos):
+                    self.settings_open = False
+                return
+
+            for i in range(8):
+                rect = pygame.Rect(180 + (i % 2) * 140, 165 + (i // 2) * 65, 120, 50)
+                if rect.collidepoint(pos):
+                    self.current_level = i + 1
+                    self.mode = "PRESET"
+
+            if pygame.Rect(800, 220, 60, 45).collidepoint(pos):
+                self.custom_elo = max(100, self.custom_elo - 100); self.mode = "ELO"
+            if pygame.Rect(865, 220, 45, 45).collidepoint(pos):
+                self.custom_elo = max(100, self.custom_elo - 10);  self.mode = "ELO"
+            if pygame.Rect(980, 220, 45, 45).collidepoint(pos):
+                self.custom_elo = min(3190, self.custom_elo + 10); self.mode = "ELO"
+            if pygame.Rect(1030, 220, 60, 45).collidepoint(pos):
+                self.custom_elo = min(3190, self.custom_elo + 100); self.mode = "ELO"
+
+            if pygame.Rect(500, 395, 100, 45).collidepoint(pos):
+                self.user_color = chess.WHITE
+            if pygame.Rect(620, 395, 100, 45).collidepoint(pos):
+                self.user_color = chess.BLACK
+
+            if pygame.Rect(430, 500, 50, 45).collidepoint(pos):
+                self.timer_setting = max(10, self.timer_setting - 60)
+            if pygame.Rect(490, 500, 50, 45).collidepoint(pos):
+                self.timer_setting = max(10, self.timer_setting - 10)
+            if pygame.Rect(660, 500, 50, 45).collidepoint(pos):
+                self.timer_setting += 10
+            if pygame.Rect(720, 500, 50, 45).collidepoint(pos):
+                self.timer_setting += 60
+
+            # Increment buttons
+            if pygame.Rect(430, 553, 50, 35).collidepoint(pos):
+                self.increment_setting = max(0, self.increment_setting - 5)
+            if pygame.Rect(490, 553, 50, 35).collidepoint(pos):
+                self.increment_setting = max(0, self.increment_setting - 1)
+            if pygame.Rect(660, 553, 50, 35).collidepoint(pos):
+                self.increment_setting += 1
+            if pygame.Rect(720, 553, 50, 35).collidepoint(pos):
+                self.increment_setting += 5
+
+            # Settings button top-right
+            if pygame.Rect(WIDTH - 130, 15, 110, 35).collidepoint(pos):
+                self.settings_open = not self.settings_open
+
+            # Variant cycle button
+            if pygame.Rect(750, 300, 350, 45).collidepoint(pos):
+                idx = VARIANT_KEYS.index(self.current_variant)
+                self.current_variant = VARIANT_KEYS[(idx + 1) % len(VARIANT_KEYS)]
+
+            # DAILY PUZZLE
+            if pygame.Rect(WIDTH // 2 - 390, 635, 230, 55).collidepoint(pos):
+                self.state = "PUZZLE"
+                self.fetch_puzzle()
+
+            # IMPORT PGN
+            if pygame.Rect(WIDTH // 2 - 390, 700, 230, 45).collidepoint(pos):
+                if self.load_pgn_file():
+                    self.state = "PGN_CHOICE"
+
+            # START
+            if pygame.Rect(WIDTH // 2 - 120, 635, 240, 55).collidepoint(pos):
+                self.reset_game()
+                self.local_multiplayer = False
+                self.state = "PLAYING"
+                self.lock_fullscreen()
+
+            # LOCAL MULTIPLAYER
+            if pygame.Rect(WIDTH // 2 + 130, 635, 240, 55).collidepoint(pos):
+                self.reset_game()
+                self.local_multiplayer = True
+                self.state = "PLAYING"
+                self.lock_fullscreen()
+
+            # ENGINE VS ENGINE
+            if pygame.Rect(WIDTH // 2 - 120, 700, 240, 45).collidepoint(pos):
+                self.state = "EVE_SETUP"
+
+        # ── ENGINE VS ENGINE SETUP ─────────────────────────────────────────────
+        elif self.state == "EVE_SETUP":
+            # White level buttons
+            for i in range(8):
+                rect = pygame.Rect(WIDTH // 2 - 340 + (i % 4) * 85, 175 + (i // 4) * 60, 75, 48)
+                if rect.collidepoint(pos):
+                    self.eve_white_level = i + 1
+            # Black level buttons
+            for i in range(8):
+                rect = pygame.Rect(WIDTH // 2 + 10 + (i % 4) * 85, 175 + (i // 4) * 60, 75, 48)
+                if rect.collidepoint(pos):
+                    self.eve_black_level = i + 1
+            # START
+            if pygame.Rect(WIDTH // 2 - 130, 375, 240, 55).collidepoint(pos):
+                self.reset_game()
+                self.eve_mode        = True
+                self.local_multiplayer = False
+                self.user_color      = chess.WHITE  # perspective: watch from white's side
+                self.state           = "PLAYING"
+                self.lock_fullscreen()
+            # BACK
+            if pygame.Rect(WIDTH // 2 - 130, 445, 240, 45).collidepoint(pos):
+                self.state = "MENU"
+
+        # ── PGN CHOICE (replay vs resume) ─────────────────────────────────────
+        elif self.state == "PGN_CHOICE":
+            # REPLAY button
+            if pygame.Rect(WIDTH // 2 - 200, HEIGHT // 2, 170, 55).collidepoint(pos):
+                self.start_pgn_replay()
+            # RESUME button
+            if pygame.Rect(WIDTH // 2 + 30, HEIGHT // 2, 170, 55).collidepoint(pos):
+                self.start_pgn_resume()
+            # BACK button
+            if pygame.Rect(WIDTH // 2 - 60, HEIGHT // 2 + 80, 120, 45).collidepoint(pos):
+                self.state = "MENU"
+
+        # ── PGN REPLAY ────────────────────────────────────────────────────────
+        elif self.state == "PGN_REPLAY":
+            sy = self.offset_y
+            # PREV (←)
+            if pygame.Rect(self.sidebar_x, sy + 215, 165, 45).collidepoint(pos):
+                self.pgn_replay_step(-1)
+            # NEXT (→)
+            if pygame.Rect(self.sidebar_x + 185, sy + 215, 165, 45).collidepoint(pos):
+                self.pgn_replay_step(1)
+            # HOME MENU
+            if pygame.Rect(self.sidebar_x, sy + 270, 350, 45).collidepoint(pos):
+                self.state = "MENU"
+                self.unlock_windowed()
+            # RESUME FROM HERE
+            if pygame.Rect(self.sidebar_x, sy + 325, 350, 45).collidepoint(pos):
+                # Take the current replay board state and hand to PLAYING
+                self.board        = self.pgn_replay_board.copy()
+                self.move_history = []
+                temp = chess.Board()
+                for m in list(self.pgn_replay_board.move_stack):
+                    self.move_history.append(temp.san(m))
+                    temp.push(m)
+                self.white_time   = float(self.timer_setting)
+                self.black_time   = float(self.timer_setting)
+                self.last_update  = time.time()
+                self.pgn_mode     = "resume"
+                self.state        = "PLAYING"
+
+        # ── PUZZLE ────────────────────────────────────────────────────────────
+        elif self.state == "PUZZLE":
+            px = 800
+            if self.puzzle_load_error:
+                if pygame.Rect(WIDTH // 2 - 80, HEIGHT // 2 + 40, 160, 45).collidepoint(pos):
+                    self.state = "MENU"
+                return
+            if pygame.Rect(px, 333, 350, 45).collidepoint(pos):
+                self.state = "MENU"
+                return
+            if pygame.Rect(px, 278, 350, 45).collidepoint(pos):
+                if self.puzzle_board is not None and self.puzzle_status == "" and self.puzzle_start_time:
+                    self.adapt_puzzle_difficulty(solved=False, elapsed=0)
+                self.fetch_puzzle()
+                return
+            if self.puzzle_board is None or self.puzzle_status == "solved":
+                return
+            if OFFSET_X < pos[0] < OFFSET_X + BOARD_SIZE and OFFSET_Y < pos[1] < OFFSET_Y + BOARD_SIZE:
+                col_idx = (pos[0] - OFFSET_X) // SQUARE_SIZE
+                row_idx = (pos[1] - OFFSET_Y) // SQUARE_SIZE
+                if self.puzzle_player_color == chess.WHITE:
+                    c, r = col_idx, 7 - row_idx
+                else:
+                    c, r = 7 - col_idx, row_idx
+                sq = chess.square(c, r)
+                if self.puzzle_selected_sq is None:
+                    piece = self.puzzle_board.piece_at(sq)
+                    if piece and piece.color == self.puzzle_board.turn:
+                        self.puzzle_selected_sq  = sq
+                        self.puzzle_legal_dots   = [m.to_square for m in self.puzzle_board.legal_moves
+                                                    if m.from_square == sq]
+                else:
+                    move  = chess.Move(self.puzzle_selected_sq, sq)
+                    piece = self.puzzle_board.piece_at(self.puzzle_selected_sq)
+                    if piece and piece.piece_type == chess.PAWN and chess.square_rank(sq) in [0, 7]:
+                        move = chess.Move(self.puzzle_selected_sq, sq, promotion=chess.QUEEN)
+                    if self.puzzle_move_idx < len(self.puzzle_solution):
+                        expected = self.puzzle_solution[self.puzzle_move_idx]
+                        if move.from_square == expected.from_square and move.to_square == expected.to_square:
+                            is_cap = bool(self.puzzle_board.piece_at(expected.to_square))
+                            self.play_move_sound(is_cap)
+                            self.puzzle_board.push(expected)
+                            self.puzzle_move_idx += 1
+                            self.puzzle_status = ""
+                            if self.puzzle_move_idx < len(self.puzzle_solution):
+                                opp = self.puzzle_solution[self.puzzle_move_idx]
+                                self.puzzle_board.push(opp)
+                                self.puzzle_move_idx += 1
+                            if self.puzzle_move_idx >= len(self.puzzle_solution):
+                                self.puzzle_status = "solved"
+                                elapsed = time.time() - self.puzzle_start_time if self.puzzle_start_time else 999
+                                self.adapt_puzzle_difficulty(solved=True, elapsed=elapsed)
+                        else:
+                            self.puzzle_status = "failed"
+                            elapsed = time.time() - self.puzzle_start_time if self.puzzle_start_time else 999
+                            self.adapt_puzzle_difficulty(solved=False, elapsed=elapsed)
+                    self.puzzle_selected_sq = None
+                    self.puzzle_legal_dots  = []
+
+        # ── PROMOTING ─────────────────────────────────────────────────────────
+        elif self.state == "PROMOTING":
+            for i, piece in enumerate([chess.QUEEN, chess.ROOK, chess.BISHOP, chess.KNIGHT]):
+                rect = pygame.Rect(WIDTH // 2 - 140 + i * 70, HEIGHT // 2 - 35, 60, 60)
+                if rect.collidepoint(pos):
+                    move = chess.Move(self.pending_promotion[0], self.pending_promotion[1],
+                                      promotion=piece)
+                    self.execute_move(move)
+                    self.state = "PLAYING"
+                    self.pending_promotion = None
+
+        # ── PLAYING ───────────────────────────────────────────────────────────
+        elif self.state == "PLAYING":
+            game_over, _ = self.check_variant_win()
+            _draw_agreed = (self.white_time == -2 or self.black_time == -2)
+            if game_over or _draw_agreed or self.resigned or (self.white_time <= 0 and self.white_time != -2) or (self.black_time <= 0 and self.black_time != -2):
+                if pygame.Rect(self.screen_w // 2 - 100, self.screen_h // 2 + 20,  200, 50).collidepoint(pos):
+                    self.eve_mode = False; self.state = "MENU"; self.unlock_windowed()
+                if pygame.Rect(self.screen_w // 2 - 100, self.screen_h // 2 + 80,  200, 50).collidepoint(pos):
+                    eve_w, eve_b = self.eve_white_level, self.eve_black_level
+                    was_eve = self.eve_mode
+                    self.reset_game()
+                    if was_eve:
+                        self.eve_white_level = eve_w
+                        self.eve_black_level = eve_b
+                        self.eve_mode = True
+                        self.local_multiplayer = False
+                if pygame.Rect(self.screen_w // 2 - 100, self.screen_h // 2 + 140, 200, 50).collidepoint(pos):
+                    self.download_pgn()
+                return
+
+            # In EVE mode only HOME MENU and DOWNLOAD PGN are interactive
+            sy = self.offset_y
+            if pygame.Rect(self.sidebar_x, sy + 215, 350, 45).collidepoint(pos):
+                self.eve_mode = False; self.state = "MENU"; self.unlock_windowed(); return
+            if pygame.Rect(self.sidebar_x, sy + 325, 350, 45).collidepoint(pos):
+                self.download_pgn()
+
+            if self.eve_mode:
+                return  # no hints, takebacks, or board clicks during EVE
+
+            # Settings overlay clicks
+            if self.settings_open:
+                ox = self.screen_w // 2 - 200
+                oy = self.screen_h // 2 - 140
+                for row_i, attr in enumerate(["setting_move_sounds", "setting_capture_sounds", "setting_show_dots", "setting_check_sounds"]):
+                    ry = oy + 65 + row_i * 55
+                    if pygame.Rect(ox + 280, ry, 90, 36).collidepoint(pos):
+                        setattr(self, attr, not getattr(self, attr))
+                        save_settings({"move_sounds": self.setting_move_sounds,
+                                       "capture_sounds": self.setting_capture_sounds,
+                                       "show_dots": self.setting_show_dots,
+                                       "check_sounds": self.setting_check_sounds})
+                if pygame.Rect(ox + 150, oy + 283, 100, 36).collidepoint(pos):
+                    self.settings_open = False
+                return
+
+            if pygame.Rect(self.sidebar_x, sy + 270, 350, 45).collidepoint(pos) and self.board.turn == self.user_color:
+                if self.hints_used < 3 and self.engine:
+                    self.hints_used += 1
+                    try:
+                        info = self.engine.analyse(self.board, chess.engine.Limit(time=0.5))
+                        if 'pv' in info:
+                            self.hint_move = info['pv'][0]
+                    except Exception:
+                        pass
+            if pygame.Rect(self.sidebar_x, sy + 378, 165, 40).collidepoint(pos):
+                self.do_takeback()
+
+            # RESIGN
+            if pygame.Rect(self.sidebar_x + 183, sy + 378, 165, 40).collidepoint(pos):
+                winner = "Black wins!" if self.user_color == chess.WHITE else "White wins!"
+                if self.local_multiplayer:
+                    winner = "Black wins!" if self.board.turn == chess.WHITE else "White wins!"
+                self.resigned = True
+                # Trigger game over display by setting time to 0 on resigning side
+                if self.local_multiplayer:
+                    if self.board.turn == chess.WHITE: self.white_time = -1
+                    else: self.black_time = -1
+                else:
+                    if self.user_color == chess.WHITE: self.white_time = -1
+                    else: self.black_time = -1
+
+            # OFFER DRAW
+            if pygame.Rect(self.sidebar_x, sy + 426, 350, 40).collidepoint(pos) and not self.draw_offer_pending:
+                if self.local_multiplayer:
+                    # Record who offered — the OTHER player must confirm
+                    self.draw_offer_pending = True
+                    self.draw_offered_by = self.board.turn
+                else:
+                    # vs bot: bot decides based on eval
+                    self.draw_offer_pending = True
+                    # Bot accepts draw if it's losing (eval < -1.0) or equal (abs < 0.5)
+                    bot_accepts = abs(self.eval_score) < 0.5 or (
+                        self.user_color == chess.WHITE and self.eval_score < -1.0) or (
+                        self.user_color == chess.BLACK and self.eval_score > 1.0)
+                    if bot_accepts:
+                        self.white_time = -2  # sentinel for draw
+                    else:
+                        self.draw_offer_pending = False  # bot declines
+
+            # Draw offer accept (local MP — the OTHER player confirms)
+            elif self.draw_offer_pending and self.local_multiplayer:
+                if pygame.Rect(self.sidebar_x, sy + 426, 350, 40).collidepoint(pos):
+                    if self.board.turn != self.draw_offered_by:
+                        self.white_time = -2  # sentinel for draw
+
+            # Crazyhouse: execute drop if piece already selected and board clicked
+            if self.current_variant == "crazyhouse" and self.czh_drag_type is not None:
+                if (self.offset_x < pos[0] < self.offset_x + BOARD_SIZE and
+                        self.offset_y < pos[1] < self.offset_y + BOARD_SIZE):
+                    c = (pos[0] - self.offset_x) // SQUARE_SIZE
+                    r = 7 - ((pos[1] - self.offset_y) // SQUARE_SIZE)
+                    drop_col = self.board.turn if self.local_multiplayer else self.user_color
+                    if drop_col == chess.BLACK:
+                        c, r = 7 - c, 7 - r
+                    to_sq = chess.square(c, r)
+                    move  = chess.Move(to_sq, to_sq, drop=self.czh_drag_type)
+                    if move in self.board.legal_moves and self.board.turn == self.czh_drag_color:
+                        self.execute_move(move)
+                    self.czh_drag_type  = None
+                    self.czh_drag_color = None
+                    return
+
+            # Crazyhouse: pocket click to select/start drag
+            if self.current_variant == "crazyhouse":
+                active_col = self.board.turn if self.local_multiplayer else self.user_color
+                if not self.eve_mode and self.board.turn == active_col:
+                    for (rect, pt, col) in self._czh_pocket_rects:
+                        if rect.collidepoint(pos) and col == active_col:
+                            self.czh_drag_type  = pt
+                            self.czh_drag_color = col
+                            self.czh_drag_pos   = pos
+                            self.selected_sq    = None
+                            self.legal_dots     = []
+                            return
+
+            # Board click handling
+            if self.offset_x < pos[0] < self.offset_x + BOARD_SIZE and self.offset_y < pos[1] < self.offset_y + BOARD_SIZE:
+                c = (pos[0] - self.offset_x) // SQUARE_SIZE
+                r = 7 - ((pos[1] - self.offset_y) // SQUARE_SIZE)
+                active_col = self.board.turn if self.local_multiplayer else self.user_color
+                if active_col == chess.BLACK:
+                    c, r = 7 - c, 7 - r
+                sq = chess.square(c, r)
+
+                clicked_own = (self.board.piece_at(sq) is not None and
+                               self.board.piece_at(sq).color == active_col)
+
+                if self.selected_sq is None:
+                    if clicked_own:
+                        self.selected_sq = sq
+                        self.legal_dots  = list(dict.fromkeys(
+                            m.to_square for m in self.board.legal_moves if m.from_square == sq
+                        ))
+                else:
+                    # Re-select a different own piece without requiring a double-click
+                    if clicked_own and sq != self.selected_sq:
+                        self.selected_sq = sq
+                        self.legal_dots  = list(dict.fromkeys(
+                            m.to_square for m in self.board.legal_moves if m.from_square == sq
+                        ))
+                    else:
+                        move  = chess.Move(self.selected_sq, sq)
+                        piece = self.board.piece_at(self.selected_sq)
+                        if piece and piece.piece_type == chess.PAWN and chess.square_rank(sq) in [0, 7]:
+                            if move in [chess.Move(m.from_square, m.to_square) for m in self.board.legal_moves]:
+                                self.pending_promotion = (self.selected_sq, sq)
+                                self.state = "PROMOTING"
+                        elif move in self.board.legal_moves:
+                            self.execute_move(move)
+                        self.selected_sq = None
+                        self.legal_dots  = []
+
+    # ── Draw: menu ────────────────────────────────────────────────────────────
+
+    def draw_menu(self):
+        self.screen.fill(COLORS["bg"])
+        self.draw_credits()
+
+        title = self.font_big.render("OmniChess", True, COLORS["accent"])
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 30))
+
+        # Level grid
+        pygame.draw.rect(self.screen, COLORS["btn"], (150, 120, 320, 310), 2, border_radius=10)
+        self.screen.blit(self.font_ui.render("ENGINE LEVEL", True, "#ffffff"), (250, 135))
+        for i in range(8):
+            rect = pygame.Rect(180 + (i % 2) * 140, 165 + (i // 2) * 65, 120, 50)
+            col  = COLORS["accent"] if (self.current_level == i + 1 and self.mode == "PRESET") else COLORS["btn"]
+            pygame.draw.rect(self.screen, col, rect, border_radius=8)
+            self.screen.blit(self.font_ui.render(f"Level {i + 1}", True, "#ffffff"), (rect.x + 28, rect.y + 14))
+
+        # Custom ELO
+        pygame.draw.rect(self.screen, COLORS["btn"], (750, 120, 400, 175), 2, border_radius=10)
+        self.screen.blit(self.font_ui.render("CUSTOM ELO MODE", True, "#ffffff"), (870, 135))
+        elo_disp = self.font_big.render(str(self.custom_elo),
+                                        True, COLORS["accent"] if self.mode == "ELO" else "#ffffff")
+        self.screen.blit(elo_disp, (WIDTH - 320, 160))
+        for lbl, x, w in [("-100", 800, 60), ("-10", 865, 45), ("+10", 980, 45), ("+100", 1030, 60)]:
+            pygame.draw.rect(self.screen, COLORS["btn"], (x, 220, w, 45), border_radius=5)
+            self.screen.blit(self.font_ui.render(lbl, True, "#ffffff"), (x + 5, 232))
+
+        # Variant selector
+        pygame.draw.rect(self.screen, COLORS["variant"], (750, 300, 350, 45), border_radius=8)
+        v_name = VARIANTS[self.current_variant][0]
+        v_desc = VARIANTS[self.current_variant][2]
+        self.screen.blit(self.font_ui.render(f"VARIANT: {v_name}", True, "#ffffff"), (762, 312))
+        self.screen.blit(self.font_tiny.render(f"{v_desc}  [click to cycle]", True, "#aaaaaa"), (762, 352))
+
+        # Play as
+        self.screen.blit(self.font_ui.render("PLAY AS:", True, "#ffffff"), (WIDTH // 2 - 40, 360))
+        for i, (label, color) in enumerate([("WHITE", chess.WHITE), ("BLACK", chess.BLACK)]):
+            rect = pygame.Rect(500 + i * 120, 395, 100, 45)
+            col  = COLORS["accent"] if self.user_color == color else COLORS["btn"]
+            pygame.draw.rect(self.screen, col, rect, border_radius=5)
+            self.screen.blit(self.font_ui.render(label, True, "#ffffff"), (rect.x + 20, rect.y + 12))
+
+        # Time control
+        self.screen.blit(self.font_ui.render("TIME CONTROL:", True, "#ffffff"), (WIDTH // 2 - 90, 465))
+        m, s = divmod(self.timer_setting, 60)
+        self.screen.blit(self.font_big.render(f"{m:02d}:{s:02d}", True, COLORS["accent"]), (WIDTH // 2 - 60, 500))
+        for lbl, x in [("-60", 430), ("-10", 490), ("+10", 660), ("+60", 720)]:
+            pygame.draw.rect(self.screen, COLORS["btn"], (x, 500, 50, 45), border_radius=5)
+            self.screen.blit(self.font_ui.render(lbl, True, "#ffffff"), (x + 8, 512))
+
+        # Increment control
+        self.screen.blit(self.font_ui.render(f"INCREMENT: +{self.increment_setting}s/move", True, "#ffffff"), (WIDTH // 2 - 90, 555))
+        for lbl, x in [("-5", 430), ("-1", 490), ("+1", 660), ("+5", 720)]:
+            pygame.draw.rect(self.screen, COLORS["btn"], (x, 553, 50, 35), border_radius=5)
+            self.screen.blit(self.font_tiny.render(lbl, True, "#ffffff"), (x + 14, 563))
+
+        # Settings button — top right
+        pygame.draw.rect(self.screen, COLORS["btn"], (WIDTH - 130, 15, 110, 35), border_radius=8)
+        self.screen.blit(self.font_tiny.render("SETTINGS", True, "#ffffff"), (WIDTH - 115, 25))
+
+        # Theme hint
+        theme_name = self.get_seasonal_name() if self.use_seasonal else f"Theme {self.current_theme_idx + 1}"
+        self.screen.blit(self.font_tiny.render("T = Board Theme | S = Seasonal On/Off", True, "#888888"), (400, 600))
+        self.screen.blit(self.font_tiny.render(f"Active: {theme_name}", True, COLORS["accent"]), (510, 616))
+
+        # Buttons row 1
+        pygame.draw.rect(self.screen, "#1baca1", (WIDTH // 2 - 390, 635, 230, 55), border_radius=15)
+        self.screen.blit(self.font_ui.render("DAILY PUZZLE", True, "#ffffff"), (WIDTH // 2 - 375, 655))
+
+        pygame.draw.rect(self.screen, COLORS["win"], (WIDTH // 2 - 120, 635, 240, 55), border_radius=15)
+        self.screen.blit(self.font_big.render("START", True, "#ffffff"), (WIDTH // 2 - 70, 641))
+
+        pygame.draw.rect(self.screen, COLORS["accent"], (WIDTH // 2 + 130, 635, 240, 55), border_radius=15)
+        self.screen.blit(self.font_ui.render("LOCAL MULTIPLAYER", True, COLORS["bg"]), (WIDTH // 2 + 145, 655))
+
+        # IMPORT PGN button
+        pgn_col = COLORS["btn"] if not self.pgn_load_error else COLORS["loss"]
+        pygame.draw.rect(self.screen, pgn_col, (WIDTH // 2 - 390, 700, 230, 45), border_radius=12)
+        self.screen.blit(self.font_ui.render("IMPORT PGN", True, "#ffffff"), (WIDTH // 2 - 375, 713))
+        if self.pgn_load_error:
+            self.screen.blit(self.font_tiny.render(self.pgn_load_error[:40], True, COLORS["loss"]),
+                             (WIDTH // 2 - 390, 752))
+
+        # ENGINE VS ENGINE button
+        pygame.draw.rect(self.screen, COLORS["variant"], (WIDTH // 2 - 120, 700, 240, 45), border_radius=12)
+        self.screen.blit(self.font_ui.render("ENGINE VS ENGINE", True, "#ffffff"), (WIDTH // 2 - 110, 713))
+
+
+        # Settings overlay (drawn on top of menu when open)
+        if self.settings_open:
+            ov = pygame.Surface((self.screen_w, self.screen_h), pygame.SRCALPHA)
+            ov.fill((0, 0, 0, 170))
+            self.screen.blit(ov, (0, 0))
+            ox = self.screen_w // 2 - 200
+            oy = self.screen_h // 2 - 140
+            pygame.draw.rect(self.screen, COLORS["sidebar"], (ox, oy, 400, 335), border_radius=15)
+            self.screen.blit(self.font_ui.render("SETTINGS", True, COLORS["accent"]), (ox + 155, oy + 18))
+            for row_i, (label, attr) in enumerate([
+                ("Move Sounds",    "setting_move_sounds"),
+                ("Capture Sounds", "setting_capture_sounds"),
+                ("Legal Dots",     "setting_show_dots"),
+                ("Check Sound",    "setting_check_sounds"),
+            ]):
+                ry = oy + 65 + row_i * 55
+                self.screen.blit(self.font_ui.render(label, True, "#ffffff"), (ox + 25, ry + 8))
+                val = getattr(self, attr)
+                tog_col = COLORS["win"] if val else COLORS["loss"]
+                pygame.draw.rect(self.screen, tog_col, (ox + 280, ry, 90, 36), border_radius=8)
+                self.screen.blit(self.font_ui.render("ON" if val else "OFF", True, "#ffffff"), (ox + 311, ry + 8))
+            pygame.draw.rect(self.screen, COLORS["btn"], (ox + 150, oy + 283, 100, 36), border_radius=8)
+            self.screen.blit(self.font_ui.render("CLOSE", True, "#ffffff"), (ox + 168, oy + 292))
+
+    # ── Draw: Engine vs Engine setup screen ──────────────────────────────────
+
+    def draw_eve_setup(self):
+        self.screen.fill(COLORS["bg"])
+        self.draw_credits()
+        title = self.font_big.render("ENGINE VS ENGINE", True, COLORS["variant"])
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 40))
+
+        sub = self.font_tiny.render("Choose a level for each side, then watch the bots play.", True, "#888888")
+        self.screen.blit(sub, (WIDTH // 2 - sub.get_width() // 2, 100))
+
+        # White bot level selector
+        self.screen.blit(self.font_ui.render("WHITE BOT LEVEL", True, "#ffffff"), (WIDTH // 2 - 340, 145))
+        for i in range(8):
+            rect = pygame.Rect(WIDTH // 2 - 340 + (i % 4) * 85, 175 + (i // 4) * 60, 75, 48)
+            col  = COLORS["accent"] if self.eve_white_level == i + 1 else COLORS["btn"]
+            pygame.draw.rect(self.screen, col, rect, border_radius=8)
+            self.screen.blit(self.font_ui.render(f"Lv {i + 1}", True, "#ffffff"), (rect.x + 18, rect.y + 13))
+
+        # Black bot level selector
+        self.screen.blit(self.font_ui.render("BLACK BOT LEVEL", True, "#ffffff"), (WIDTH // 2 + 10, 145))
+        for i in range(8):
+            rect = pygame.Rect(WIDTH // 2 + 10 + (i % 4) * 85, 175 + (i // 4) * 60, 75, 48)
+            col  = COLORS["accent"] if self.eve_black_level == i + 1 else COLORS["btn"]
+            pygame.draw.rect(self.screen, col, rect, border_radius=8)
+            self.screen.blit(self.font_ui.render(f"Lv {i + 1}", True, "#ffffff"), (rect.x + 18, rect.y + 13))
+
+        # Summary
+        summary = self.font_ui.render(
+            f"White: Level {self.eve_white_level}   vs   Black: Level {self.eve_black_level}",
+            True, COLORS["accent"])
+        self.screen.blit(summary, (WIDTH // 2 - summary.get_width() // 2, 320))
+
+        # START and BACK buttons
+        pygame.draw.rect(self.screen, COLORS["win"],  (WIDTH // 2 - 130, 375, 240, 55), border_radius=12)
+        self.screen.blit(self.font_big.render("START", True, "#ffffff"), (WIDTH // 2 - 72, 382))
+
+        pygame.draw.rect(self.screen, COLORS["btn"],  (WIDTH // 2 - 130, 445, 240, 45), border_radius=10)
+        self.screen.blit(self.font_ui.render("BACK", True, "#ffffff"), (WIDTH // 2 - 32, 457))
+
+    # ── Draw: PGN choice screen ───────────────────────────────────────────────
+
+    def draw_pgn_choice(self):
+        self.screen.fill(COLORS["bg"])
+        self.draw_credits()
+        title = self.font_big.render("PGN LOADED", True, COLORS["accent"])
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 2 - 120))
+        info = self.font_ui.render(f"{len(self.pgn_moves)} moves loaded", True, "#ffffff")
+        self.screen.blit(info, (WIDTH // 2 - info.get_width() // 2, HEIGHT // 2 - 60))
+
+        pygame.draw.rect(self.screen, COLORS["btn"], (WIDTH // 2 - 200, HEIGHT // 2, 170, 55), border_radius=10)
+        self.screen.blit(self.font_ui.render("REPLAY", True, "#ffffff"), (WIDTH // 2 - 170, HEIGHT // 2 + 15))
+
+        pygame.draw.rect(self.screen, COLORS["win"], (WIDTH // 2 + 30, HEIGHT // 2, 170, 55), border_radius=10)
+        self.screen.blit(self.font_ui.render("RESUME", True, "#ffffff"), (WIDTH // 2 + 60, HEIGHT // 2 + 15))
+
+        pygame.draw.rect(self.screen, COLORS["btn"], (WIDTH // 2 - 60, HEIGHT // 2 + 80, 120, 45), border_radius=8)
+        self.screen.blit(self.font_ui.render("BACK", True, "#ffffff"), (WIDTH // 2 - 35, HEIGHT // 2 + 93))
+
+        sub = self.font_tiny.render("REPLAY: step through the game    RESUME: continue playing from end",
+                                    True, "#888888")
+        self.screen.blit(sub, (WIDTH // 2 - sub.get_width() // 2, HEIGHT // 2 - 20))
+
+    # ── Draw: PGN replay screen ───────────────────────────────────────────────
+
+    def draw_pgn_replay(self):
+        self.screen.fill(COLORS["bg"])
+        self.draw_credits()
+        self.draw_eval_bar()
+
+        b = self.pgn_replay_board
+        self.draw_board_surface(b, None, [], None, self.user_color)
+
+        sx = self.sidebar_x
+        sy = self.offset_y
+
+        # Move counter
+        total = len(self.pgn_moves)
+        idx   = self.pgn_replay_idx
+        counter = self.font_big.render(f"{idx} / {total}", True, COLORS["accent"])
+        self.screen.blit(counter, (sx + 15, sy + 10))
+
+        # Move list (last 14)
+        pygame.draw.rect(self.screen, "#2c2c2c", (sx, sy + 70, 350, 135), border_radius=10)
+        self.screen.blit(self.font_tiny.render("MOVE HISTORY", True, "#888888"), (sx + 15, sy + 78))
+
+        # Build SAN history from replay board move stack
+        temp_b = chess.Board()
+        sans   = []
+        for mv in list(b.move_stack):
+            try:
+                sans.append(temp_b.san(mv))
+                temp_b.push(mv)
+            except Exception:
+                break
+        hx, hy = sx + 15, sy + 95
+        for i in range(max(0, len(sans) - 14), len(sans)):
+            self.screen.blit(self.font_tiny.render(f"{i + 1}. {sans[i]}", True, "#ffffff"), (hx, hy))
+            hy += 18
+            if hy > sy + 190:
+                hx += 80; hy = sy + 95
+
+        # Nav buttons
+        pygame.draw.rect(self.screen, COLORS["btn"], (sx, sy + 215, 165, 45), border_radius=8)
+        self.screen.blit(self.font_ui.render("◀  PREV", True, "#ffffff"), (sx + 30, sy + 227))
+
+        pygame.draw.rect(self.screen, COLORS["btn"], (sx + 185, sy + 215, 165, 45), border_radius=8)
+        self.screen.blit(self.font_ui.render("NEXT  ▶", True, "#ffffff"), (sx + 200, sy + 227))
+
+        pygame.draw.rect(self.screen, COLORS["btn"], (sx, sy + 270, 350, 45), border_radius=10)
+        self.screen.blit(self.font_ui.render("HOME MENU", True, "#ffffff"), (sx + 115, sy + 282))
+
+        pygame.draw.rect(self.screen, COLORS["win"], (sx, sy + 325, 350, 45), border_radius=10)
+        self.screen.blit(self.font_ui.render("RESUME FROM HERE", True, "#ffffff"), (sx + 60, sy + 337))
+
+        # Opening display
+        if b.move_stack:
+            parts = []; name = ""
+            for mv in b.move_stack:
+                parts.append(mv.uci())
+                k = " ".join(parts)
+                if k in ECO_OPENINGS:
+                    name = ECO_OPENINGS[k]
+            if name:
+                op_surf = self.font_tiny.render(f"Opening: {name}", True, "#aaddff")
+                self.screen.blit(op_surf, (self.offset_x, self.offset_y + BOARD_SIZE + 38))
+
+    # ── Draw: puzzle screen ───────────────────────────────────────────────────
+
+    def draw_puzzle_screen(self):
+        self.screen.fill(COLORS["bg"])
+        self.draw_credits()
+        title = self.font_ui.render("LICHESS PUZZLE", True, COLORS["accent"])
+        self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 15))
+
+        if self.puzzle_loading:
+            msg = self.font_big.render("Loading puzzle...", True, "#ffffff")
+            self.screen.blit(msg, (WIDTH // 2 - msg.get_width() // 2, HEIGHT // 2 - 30))
+        elif self.puzzle_load_error:
+            err = self.font_ui.render(self.puzzle_load_error[:60], True, COLORS["loss"])
+            self.screen.blit(err, (WIDTH // 2 - err.get_width() // 2, HEIGHT // 2 - 15))
+            pygame.draw.rect(self.screen, COLORS["btn"], (WIDTH // 2 - 80, HEIGHT // 2 + 40, 160, 45), border_radius=8)
+            self.screen.blit(self.font_ui.render("BACK", True, "#ffffff"), (WIDTH // 2 - 25, HEIGHT // 2 + 52))
+        elif self.puzzle_board is not None:
+            theme = self.get_active_theme()
+            for sq in chess.SQUARES:
+                r, c = sq // 8, sq % 8
+                if self.puzzle_player_color == chess.WHITE:
+                    dr, dc = (7 - r, c)
+                else:
+                    dr, dc = (r, 7 - c)
+                x   = dc * SQUARE_SIZE + OFFSET_X
+                y   = dr * SQUARE_SIZE + OFFSET_Y
+                col = theme[0] if (dr + dc) % 2 == 0 else theme[1]
+                piece = self.puzzle_board.piece_at(sq)
+                if piece and piece.piece_type == chess.KING and self.puzzle_board.is_check() and piece.color == self.puzzle_board.turn:
+                    col = COLORS["check"]
+                if self.puzzle_selected_sq == sq:
+                    col = COLORS["select"]
+                pygame.draw.rect(self.screen, col, (x, y, SQUARE_SIZE, SQUARE_SIZE))
+                if piece:
+                    p_color = "#ffffff" if piece.color == chess.WHITE else "#000000"
+                    self.screen.blit(self.font_piece.render(SYMBOLS[piece.symbol()], True, p_color), (x + 5, y - 10))
+
+            for d_sq in self.puzzle_legal_dots:
+                r, c = d_sq // 8, d_sq % 8
+                if self.puzzle_player_color == chess.WHITE:
+                    dr, dc = (7 - r, c)
+                else:
+                    dr, dc = (r, 7 - c)
+                dot_x = dc * SQUARE_SIZE + OFFSET_X + SQUARE_SIZE // 2
+                dot_y = dr * SQUARE_SIZE + OFFSET_Y + SQUARE_SIZE // 2
+                s = pygame.Surface((30, 30), pygame.SRCALPHA)
+                pygame.draw.circle(s, COLORS["capture_dot"] if self.puzzle_board.piece_at(d_sq) else COLORS["dot"], (15, 15), 10)
+                self.screen.blit(s, (dot_x - 15, dot_y - 15))
+
+            px = 800
+            elapsed = int(time.time() - self.puzzle_start_time) if self.puzzle_start_time and self.puzzle_status == "" else 0
+            pygame.draw.rect(self.screen, COLORS["btn"], (px, 50, 350, 130), border_radius=10)
+            turn_str = "WHITE to move" if self.puzzle_board.turn == chess.WHITE else "BLACK to move"
+            self.screen.blit(self.font_ui.render(turn_str, True, COLORS["accent"]), (px + 15, 58))
+            total = len(self.puzzle_solution) - 1
+            done  = self.puzzle_move_idx - 1
+            self.screen.blit(self.font_ui.render(f"Progress: {done}/{total}", True, "#ffffff"), (px + 15, 84))
+            self.screen.blit(self.font_tiny.render(f"Difficulty: {self.puzzle_difficulty.upper()}", True, COLORS["accent"]), (px + 15, 110))
+            self.screen.blit(self.font_tiny.render(f"Rating: {self.puzzle_rating}   Themes: {self.puzzle_themes_str}", True, "#aaaaaa"), (px + 15, 128))
+            timer_col = COLORS["accent"] if self.puzzle_status == "" else "#888888"
+            self.screen.blit(self.font_tiny.render(f"Time: {elapsed}s", True, timer_col), (px + 15, 146))
+
+            if self.puzzle_status == "solved":
+                pygame.draw.rect(self.screen, COLORS["win"],  (px, 195, 350, 50), border_radius=10)
+                self.screen.blit(self.font_ui.render("PUZZLE SOLVED!", True, "#ffffff"), (px + 65, 208))
+            elif self.puzzle_status == "failed":
+                pygame.draw.rect(self.screen, COLORS["loss"], (px, 195, 350, 50), border_radius=10)
+                self.screen.blit(self.font_ui.render("WRONG — Try Again", True, "#ffffff"), (px + 40, 208))
+
+            if self.puzzle_last_feedback:
+                self.screen.blit(self.font_tiny.render(self.puzzle_last_feedback, True, "#aaddff"), (px, 258))
+
+            pygame.draw.rect(self.screen, COLORS["btn"], (px, 278, 350, 45), border_radius=10)
+            self.screen.blit(self.font_ui.render("NEW PUZZLE", True, "#ffffff"), (px + 90, 290))
+            pygame.draw.rect(self.screen, COLORS["btn"], (px, 333, 350, 45), border_radius=10)
+            self.screen.blit(self.font_ui.render("BACK TO MENU", True, "#ffffff"), (px + 75, 345))
+
+    # ── Main game loop ────────────────────────────────────────────────────────
+
+    def run(self):
+        while True:
+            now = time.time()
+            dt  = now - self.last_update
+            self.last_update = now
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    if self.engine:
+                        self.engine.quit()
+                    pygame.quit()
+                    sys.exit()
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    self.handle_click(event.pos)
+
+                if event.type == pygame.MOUSEMOTION:
+                    if self.czh_drag_type is not None:
+                        self.czh_drag_pos = event.pos
+
+                if event.type == pygame.MOUSEBUTTONUP:
+                    # Deselect piece when drag released outside the board
+                    if self.state == "PLAYING" and self.selected_sq is not None:
+                        mx, my = event.pos
+                        if not (self.offset_x <= mx < self.offset_x + BOARD_SIZE and
+                                self.offset_y <= my < self.offset_y + BOARD_SIZE):
+                            self.selected_sq = None
+                            self.legal_dots  = []
+                    if self.czh_drag_type is not None and self.state == "PLAYING":
+                        mx, my = event.pos
+                        if (self.offset_x <= mx < self.offset_x + BOARD_SIZE and
+                                self.offset_y <= my < self.offset_y + BOARD_SIZE):
+                            c = (mx - self.offset_x) // SQUARE_SIZE
+                            r = 7 - ((my - self.offset_y) // SQUARE_SIZE)
+                            if self.czh_drag_color == chess.BLACK:
+                                c, r = 7 - c, 7 - r
+                            to_sq = chess.square(c, r)
+                            move  = chess.Move(to_sq, to_sq, drop=self.czh_drag_type)
+                            game_over, _ = self.check_variant_win()
+                            if (move in self.board.legal_moves and
+                                    self.board.turn == self.czh_drag_color and
+                                    not game_over):
+                                self.execute_move(move)
+                            self.czh_drag_type  = None
+                            self.czh_drag_color = None
+
+                if event.type == pygame.KEYDOWN:
+                    if self.state == "MENU":
+                        if event.key == pygame.K_t:
+                            self.use_seasonal = False
+                            self.current_theme_idx = (self.current_theme_idx + 1) % len(THEMES)
+                        if event.key == pygame.K_s:
+                            self.use_seasonal = not self.use_seasonal
+                        if event.key == pygame.K_ESCAPE:
+                            if self.engine:
+                                self.engine.quit()
+                            pygame.quit()
+                            sys.exit()
+                    elif self.state == "PUZZLE":
+                        if event.key == pygame.K_ESCAPE:
+                            self.state = "MENU"
+                    elif self.state == "PGN_REPLAY":
+                        if event.key == pygame.K_RIGHT:
+                            self.pgn_replay_step(1)
+                        if event.key == pygame.K_LEFT:
+                            self.pgn_replay_step(-1)
+                        if event.key == pygame.K_ESCAPE:
+                            self.state = "MENU"
+                            self.unlock_windowed()
+                    elif self.state == "PGN_CHOICE":
+                        if event.key == pygame.K_ESCAPE:
+                            self.state = "MENU"
+
+            # ── Render ────────────────────────────────────────────────────────
+            if self.state == "MENU":
+                self.draw_menu()
+                pygame.display.flip()
+                self.clock.tick(60)
+
+            elif self.state == "PGN_CHOICE":
+                self.draw_pgn_choice()
+                pygame.display.flip()
+                self.clock.tick(60)
+
+            elif self.state == "PGN_REPLAY":
+                self.draw_pgn_replay()
+                pygame.display.flip()
+                self.clock.tick(60)
+
+            elif self.state == "PUZZLE":
+                self.draw_puzzle_screen()
+                pygame.display.flip()
+                self.clock.tick(60)
+
+            elif self.state == "EVE_SETUP":
+                self.draw_eve_setup()
+                pygame.display.flip()
+                self.clock.tick(60)
+
+            else:  # PLAYING / PROMOTING
+                self.screen.fill(COLORS["bg"])
+                self.draw_credits()
+                self.draw_eval_bar()
+
+                season_name = self.get_seasonal_name()
+                if season_name:
+                    season_surf = self.font_tiny.render(f"Theme: {season_name}", True, COLORS["accent"])
+                    self.screen.blit(season_surf, (self.offset_x, self.offset_y - 20))
+
+                # Variant badge
+                v_name = VARIANTS[self.current_variant][0]
+                if self.current_variant != "standard":
+                    badge = self.font_tiny.render(f"Variant: {v_name}", True, COLORS["variant"])
+                    self.screen.blit(badge, (self.offset_x, self.offset_y - 36 if season_name else self.offset_y - 20))
+
+                game_over, go_msg = self.check_variant_win()
+                draw_agreed = (self.white_time == -2 or self.black_time == -2)
+                if not game_over and not draw_agreed and self.state == "PLAYING":
+                    if self.board.turn == chess.WHITE:
+                        self.white_time -= dt
+                    else:
+                        self.black_time -= dt
+
+                self.draw_board()
+
+                if self.current_opening:
+                    op_surf = self.font_tiny.render(f"Opening: {self.current_opening}", True, "#aaddff")
+                    self.screen.blit(op_surf, (self.offset_x, self.offset_y + BOARD_SIZE + 38))
+
+                # Three-check counter below opening
+                if self.current_variant == "3check" and isinstance(self.board, chess.variant.ThreeCheckBoard):
+                    w_given = 3 - self.board.remaining_checks[chess.WHITE]
+                    b_given = 3 - self.board.remaining_checks[chess.BLACK]
+                    chk_surf = self.font_tiny.render(
+                        f"Checks — White: {w_given}/3   Black: {b_given}/3",
+                        True, COLORS["accent"])
+                    self.screen.blit(chk_surf, (self.offset_x, self.offset_y + BOARD_SIZE + 54))
+
+                bot_label = f"BOT ({'Lvl ' + str(self.current_level) if self.mode == 'PRESET' else self.custom_elo})"
+                if self.eve_mode:
+                    top_label, top_time, top_captures = f"BOT Lvl {self.eve_black_level} (Black)", self.black_time, self.captured_by_black
+                    btm_label, btm_time, btm_captures = f"BOT Lvl {self.eve_white_level} (White)", self.white_time, self.captured_by_white
+                elif self.local_multiplayer:
+                    top_label, top_time, top_captures = "PLAYER 2 (Black)", self.black_time, self.captured_by_black
+                    btm_label, btm_time, btm_captures = "PLAYER 1 (White)", self.white_time, self.captured_by_white
+                elif self.user_color == chess.WHITE:
+                    top_label, top_time, top_captures = f"{bot_label} (Black)", self.black_time, self.captured_by_black
+                    btm_label, btm_time, btm_captures = "YOU (White)", self.white_time, self.captured_by_white
+                else:
+                    top_label, top_time, top_captures = f"{bot_label} (White)", self.white_time, self.captured_by_white
+                    btm_label, btm_time, btm_captures = "YOU (Black)", self.black_time, self.captured_by_black
+
+                sy = self.offset_y
+
+                # Crazyhouse pocket colour mapping (which pocket belongs to top/bottom card)
+                if self.current_variant == "crazyhouse" and isinstance(self.board, chess.variant.CrazyhouseBoard):
+                    if not self.eve_mode and not self.local_multiplayer and self.user_color == chess.BLACK:
+                        top_pocket_color = chess.WHITE
+                        btm_pocket_color = chess.BLACK
+                    else:
+                        top_pocket_color = chess.BLACK
+                        btm_pocket_color = chess.WHITE
+                    self._czh_pocket_rects = []
+
+                # Top player card
+                pygame.draw.rect(self.screen, COLORS["btn"], (self.sidebar_x, sy, 350, 100), border_radius=10)
+                t_mins, t_secs = divmod(max(0, int(top_time)), 60)
+                self.screen.blit(self.font_ui.render(top_label, True, COLORS["accent"]), (self.sidebar_x + 15, sy + 8))
+                self.screen.blit(self.font_big.render(f"{t_mins:02d}:{t_secs:02d}", True, "#ffffff"), (self.sidebar_x + 15, sy + 32))
+                tx = self.sidebar_x + 15
+                if self.current_variant == "crazyhouse" and isinstance(self.board, chess.variant.CrazyhouseBoard):
+                    pocket = self.board.pockets[top_pocket_color]
+                    for pt in [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN]:
+                        for _ in range(pocket.count(pt)):
+                            sym = chess.Piece(pt, top_pocket_color).symbol()
+                            p_col = "#ffffff" if top_pocket_color == chess.WHITE else "#000000"
+                            if self.local_multiplayer:
+                                rect = pygame.Rect(tx, sy + 70, 22, 30)
+                                self._czh_pocket_rects.append((rect, pt, top_pocket_color))
+                            self.screen.blit(self.font_captured.render(SYMBOLS[sym], True, p_col), (tx, sy + 70))
+                            tx += 22
+                else:
+                    for p in top_captures:
+                        p_col = "#ffffff" if p.isupper() else "#000000"
+                        self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (tx, sy + 70))
+                        tx += 22
+
+                # Move history
+                pygame.draw.rect(self.screen, "#2c2c2c", (self.sidebar_x, sy + 105, 350, 100), border_radius=10)
+                self.screen.blit(self.font_tiny.render("MOVE HISTORY", True, "#888888"), (self.sidebar_x + 15, sy + 110))
+                hx, hy = self.sidebar_x + 15, sy + 128
+                for i in range(max(0, len(self.move_history) - 14), len(self.move_history)):
+                    self.screen.blit(self.font_tiny.render(f"{i + 1}. {self.move_history[i]}", True, "#ffffff"), (hx, hy))
+                    hy += 20
+                    if hy > sy + 195:
+                        hx += 80; hy = sy + 128
+
+                # Sidebar buttons
+                pygame.draw.rect(self.screen, COLORS["btn"], (self.sidebar_x, sy + 215, 350, 45), border_radius=10)
+                self.screen.blit(self.font_ui.render("HOME MENU", True, "#ffffff"), (self.sidebar_x + 115, sy + 227))
+
+                hint_col = COLORS["accent"] if self.hints_used < 3 else COLORS["loss"]
+                pygame.draw.rect(self.screen, hint_col, (self.sidebar_x, sy + 270, 350, 45), border_radius=10)
+                self.screen.blit(self.font_ui.render(f"HINT ({3 - self.hints_used} left)", True, COLORS["bg"]),
+                                 (self.sidebar_x + 35, sy + 282))
+
+                pygame.draw.rect(self.screen, COLORS["accent"], (self.sidebar_x, sy + 325, 350, 45), border_radius=10)
+                self.screen.blit(self.font_ui.render("DOWNLOAD PGN", True, COLORS["bg"]), (self.sidebar_x + 105, sy + 337))
+
+                takeback_limit = self.get_takeback_limit()
+                takebacks_left = takeback_limit - self.takebacks_used
+                can_takeback   = takebacks_left > 0 and len(self.board_history) >= 2 and self.board.turn == self.user_color
+                tb_color       = COLORS["btn"] if can_takeback else COLORS["loss"]
+                pygame.draw.rect(self.screen, tb_color, (self.sidebar_x, sy + 378, 165, 40), border_radius=10)
+                self.screen.blit(self.font_ui.render(f"TB ({takebacks_left})", True, "#ffffff"),
+                                 (self.sidebar_x + 30, sy + 389))
+
+                # Resign / Draw offer buttons (only in human vs bot or local MP, not EVE)
+                if not self.eve_mode:
+                    pygame.draw.rect(self.screen, COLORS["loss"], (self.sidebar_x + 183, sy + 378, 165, 40), border_radius=10)
+                    self.screen.blit(self.font_ui.render("RESIGN", True, "#ffffff"), (self.sidebar_x + 218, sy + 389))
+
+                    if self.draw_offer_pending and self.local_multiplayer:
+                        draw_col = COLORS["win"]
+                        other = "BLACK" if self.draw_offered_by == chess.WHITE else "WHITE"
+                        draw_lbl = f"{other}: CONFIRM?"
+                    elif self.draw_offer_pending:
+                        draw_col = "#888888"
+                        draw_lbl = "WAITING..."
+                    else:
+                        draw_col = COLORS["accent"]
+                        draw_lbl = "DRAW?"
+                    pygame.draw.rect(self.screen, draw_col, (self.sidebar_x, sy + 426, 350, 40), border_radius=10)
+                    self.screen.blit(self.font_ui.render(draw_lbl, True, COLORS["bg"]), (self.sidebar_x + 110, sy + 437))
+
+                # Settings overlay
+                if self.settings_open:
+                    ov = pygame.Surface((self.screen_w, self.screen_h), pygame.SRCALPHA)
+                    ov.fill((0, 0, 0, 170))
+                    self.screen.blit(ov, (0, 0))
+                    ox = self.screen_w // 2 - 200
+                    oy = self.screen_h // 2 - 140
+                    pygame.draw.rect(self.screen, COLORS["sidebar"], (ox, oy, 400, 280), border_radius=15)
+                    self.screen.blit(self.font_ui.render("SETTINGS", True, COLORS["accent"]), (ox + 155, oy + 18))
+                    for row_i, (label, attr) in enumerate([
+                        ("Move Sounds",    "setting_move_sounds"),
+                        ("Capture Sounds", "setting_capture_sounds"),
+                        ("Legal Dots",     "setting_show_dots"),
+                        ("Check Sound",    "setting_check_sounds"),
+                    ]):
+                        ry = oy + 65 + row_i * 55
+                        self.screen.blit(self.font_ui.render(label, True, "#ffffff"), (ox + 25, ry + 8))
+                        val = getattr(self, attr)
+                        tog_col = COLORS["win"] if val else COLORS["loss"]
+                        pygame.draw.rect(self.screen, tog_col, (ox + 280, ry, 90, 36), border_radius=8)
+                        self.screen.blit(self.font_ui.render("ON" if val else "OFF", True, "#ffffff"), (ox + 311, ry + 8))
+                    pygame.draw.rect(self.screen, COLORS["btn"], (ox + 150, oy + 228, 100, 36), border_radius=8)
+                    self.screen.blit(self.font_ui.render("CLOSE", True, "#ffffff"), (ox + 168, oy + 237))
+
+                # Bottom player card — only draw if it fits on screen
+                if sy + 600 <= self.screen_h:
+                    pygame.draw.rect(self.screen, COLORS["btn"], (self.sidebar_x, sy + 500, 350, 100), border_radius=10)
+                    b_mins, b_secs = divmod(max(0, int(btm_time)), 60)
+                    self.screen.blit(self.font_ui.render(btm_label, True, COLORS["accent"]), (self.sidebar_x + 15, sy + 508))
+                    self.screen.blit(self.font_big.render(f"{b_mins:02d}:{b_secs:02d}", True, "#ffffff"), (self.sidebar_x + 15, sy + 532))
+                    bx = self.sidebar_x + 15
+                    if self.current_variant == "crazyhouse" and isinstance(self.board, chess.variant.CrazyhouseBoard):
+                        pocket = self.board.pockets[btm_pocket_color]
+                        for pt in [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN]:
+                            for _ in range(pocket.count(pt)):
+                                sym = chess.Piece(pt, btm_pocket_color).symbol()
+                                p_col = "#ffffff" if btm_pocket_color == chess.WHITE else "#000000"
+                                rect = pygame.Rect(bx, sy + 570, 22, 30)
+                                self._czh_pocket_rects.append((rect, pt, btm_pocket_color))
+                                self.screen.blit(self.font_captured.render(SYMBOLS[sym], True, p_col), (bx, sy + 570))
+                                bx += 22
+                    else:
+                        for p in btm_captures:
+                            p_col = "#ffffff" if p.isupper() else "#000000"
+                            self.screen.blit(self.font_captured.render(SYMBOLS[p], True, p_col), (bx, sy + 570))
+                            bx += 22
+
+                # Local multiplayer turn indicator
+                if self.local_multiplayer:
+                    turn_label = "WHITE'S TURN" if self.board.turn == chess.WHITE else "BLACK'S TURN"
+                    turn_col   = "#ffffff" if self.board.turn == chess.WHITE else "#888888"
+                    pygame.draw.rect(self.screen, COLORS["btn"], (self.sidebar_x, sy + 474, 350, 40), border_radius=10)
+                    self.screen.blit(self.font_ui.render(turn_label, True, turn_col), (self.sidebar_x + 90, sy + 486))
+
+                # Bot plays
+                if self.eve_mode and not game_over and self.state == "PLAYING":
+                    if self.engine:
+                        pygame.display.flip()
+                        pygame.time.delay(300)  # small delay so the game is watchable
+                        level = self.eve_white_level if self.board.turn == chess.WHITE else self.eve_black_level
+                        move = self.get_bot_move_for_level(level)
+                        if move and self.state == "PLAYING":
+                            self.execute_move(move)
+                elif not self.eve_mode and not self.local_multiplayer and self.board.turn != self.user_color and not game_over and self.state == "PLAYING":
+                    if self.engine:
+                        pygame.display.flip()
+                        if self.mode == "PRESET":
+                            move = self.get_bot_move()
+                        else:
+                            try:
+                                self.engine.configure({"UCI_LimitStrength": True,
+                                                       "UCI_Elo": max(1320, min(3190, self.custom_elo))})
+                                res  = self.engine.play(self.board, chess.engine.Limit(time=2.0))
+                                self.engine.configure({"UCI_LimitStrength": False})
+                                move = res.move
+                            except Exception:
+                                self.engine.configure({"UCI_LimitStrength": False})
+                                move = self.get_bot_move()
+                        if move and self.state == "PLAYING" and not self.takeback_requested:
+                            self.execute_move(move)
+                        self.takeback_requested = False
+
+                # Promotion overlay
+                if self.state == "PROMOTING":
+                    s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                    s.fill(COLORS["overlay"])
+                    self.screen.blit(s, (0, 0))
+                    pygame.draw.rect(self.screen, COLORS["sidebar"],
+                                     (self.screen_w // 2 - 160, self.screen_h // 2 - 60, 320, 120), border_radius=15)
+                    promos = ['Q', 'R', 'B', 'N'] if self.user_color == chess.WHITE else ['q', 'r', 'b', 'n']
+                    for i, p in enumerate(promos):
+                        rect = pygame.Rect(WIDTH // 2 - 140 + i * 70, HEIGHT // 2 - 35, 60, 60)
+                        pygame.draw.rect(self.screen, COLORS["btn"], rect, border_radius=8)
+                        self.screen.blit(self.font_captured.render(SYMBOLS[p], True, "#ffffff"),
+                                         (rect.x + 15, rect.y + 10))
+
+                # Game over overlay
+                if game_over or draw_agreed or (self.white_time <= 0 and self.white_time != -2) or (self.black_time <= 0 and self.black_time != -2) or self.resigned:
+                    if draw_agreed:
+                        go_msg = "Draw agreed!"
+                    elif self.resigned:
+                        go_msg = ("Black wins! (Resigned)" if self.user_color == chess.WHITE
+                                  else "White wins! (Resigned)")
+                        if self.local_multiplayer:
+                            go_msg = ("Black wins! (Resigned)" if self.board.turn == chess.WHITE
+                                      else "White wins! (Resigned)")
+                    elif self.white_time <= 0:
+                        go_msg = "Time — Black wins!"
+                    elif self.black_time <= 0:
+                        go_msg = "Time — White wins!"
+                    s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                    s.fill(COLORS["overlay"])
+                    self.screen.blit(s, (0, 0))
+                    txt = self.font_big.render(go_msg, True, COLORS["accent"])
+                    self.screen.blit(txt, (self.screen_w // 2 - txt.get_width() // 2, self.screen_h // 2 - 80))
+                    pygame.draw.rect(self.screen, COLORS["win"],
+                                     (self.screen_w // 2 - 100, self.screen_h // 2 + 20,  200, 50), border_radius=10)
+                    self.screen.blit(self.font_ui.render("BACK TO MENU", True, "#ffffff"),
+                                     (self.screen_w // 2 - 75, self.screen_h // 2 + 33))
+                    pygame.draw.rect(self.screen, COLORS["accent"],
+                                     (self.screen_w // 2 - 100, self.screen_h // 2 + 80,  200, 50), border_radius=10)
+                    self.screen.blit(self.font_ui.render("REMATCH", True, COLORS["bg"]),
+                                     (self.screen_w // 2 - 50, self.screen_h // 2 + 93))
+                    pygame.draw.rect(self.screen, COLORS["btn"],
+                                     (self.screen_w // 2 - 100, self.screen_h // 2 + 140, 200, 50), border_radius=10)
+                    self.screen.blit(self.font_ui.render("DOWNLOAD PGN", True, "#ffffff"),
+                                     (self.screen_w // 2 - 90, self.screen_h // 2 + 153))
+
+                # Crazyhouse: draw piece following the cursor during drag
+                if self.czh_drag_type is not None and self.czh_drag_color is not None:
+                    sym = chess.Piece(self.czh_drag_type, self.czh_drag_color).symbol()
+                    p_col = "#ffffff" if self.czh_drag_color == chess.WHITE else "#000000"
+                    drag_surf = self.font_piece.render(SYMBOLS[sym], True, p_col)
+                    self.screen.blit(drag_surf, (self.czh_drag_pos[0] - 30, self.czh_drag_pos[1] - 40))
+
+                pygame.display.flip()
+                self.clock.tick(60)
+
+
+if __name__ == "__main__":
+    ChessTitan().run()
